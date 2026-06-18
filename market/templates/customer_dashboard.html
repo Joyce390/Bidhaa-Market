@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+
+{% block title %}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h3>Your Purchases & Balance, Welcome!</h3>
+
+
+    <div class="row">
+        
+        <!-- Orders Section -->
+        <div class="col-md-3">
+            <div class="card text-white bg-primary mb-3">
+                <div class="card-header">My Orders</div>
+                <div class="card-body">
+                    <h5 class="card-title">Track Your Orders</h5>
+                    <p class="card-text">View the status of your purchases.</p>
+                    <a href="{{ url_for('customer_orders') }}" class="btn btn-light">📦View Orders</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Wallet Balance Section -->
+        <div class="col-md-3">
+            <div class="card text-white bg-success mb-3">
+                <div class="card-header">Wallet Balance</div>
+                <div class="card-body">
+                    <h5 class="card-title">Available Balance</h5>
+                    <p class="card-text">Current Balance: <strong>{{ current_user.prettier_budget }}</strong></p>
+                    <a href="{{ url_for('wallet_page') }}" class="btn btn-light">💼Manage Wallet</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

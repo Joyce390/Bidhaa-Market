@@ -1,0 +1,68 @@
+{% extends 'base.html' %}
+
+{% block title %}Seller Orders{% endblock %}
+{% block content %}
+<div class="container mt-4">
+    <h2>Orders</h2>
+    {% if orders %}
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Item</th>
+                <th>Buyer</th>
+                <th>Price</th>
+                <th>Shipping Status</th>
+                <th>Shipping Info</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for order in orders %}
+            <tr>
+                <td>{{ order.item.name }}</td>
+                <td>{{ order.user.username }}</td>
+                <td>Ksh {{ order.total_price }}</td>
+                <td>
+                    <span class="badge 
+                        {% if order.shipping_status == 'Processing' %}bg-warning
+                        {% elif order.shipping_status == 'Shipping in Process' %}bg-info
+                        {% elif order.shipping_status == 'Shipped' %}bg-primary
+                        {% elif order.shipping_status == 'Paid' %}bg-success
+                        {% else %}bg-secondary{% endif %}">{{ order.shipping_status }}</span>
+                </td>
+                <td>
+                    <p>{{ order.shipping_town }}, {{ order.shipping_apartment }}</p>
+                    <p>{{ order.shipping_phone }}</p>
+                </td>
+                <td>
+                    {% if order.shipping_status == 'Processing' %}
+                    <form action="{{ url_for('mark_order_as_shipping', order_id=order.id) }}" method="POST">
+                        <button type="submit" class="btn btn-info btn-sm">🚚 Mark as Shipping</button>
+                    </form>
+                    {% elif order.shipping_status == 'Shipping in Process' %}
+                    <form action="{{ url_for('mark_order_as_shipped', order_id=order.id) }}" method="POST">
+                        <button type="submit" class="btn btn-success btn-sm">✅ Mark as Shipped</button>
+                    </form>
+                    {% elif order.shipping_status == 'Shipped' %}
+                    <span class="text-muted">✅ Already Shipped</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p>No orders yet.</p>
+    {% endif %}
+</div>
+
+<!-- JavaScript to Auto-Refresh After Form Submission -->
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        setTimeout(() => {
+            location.reload();
+        }, 500); // Refresh after 500ms to reflect changes
+    });
+</script>
+
+{% endblock %}

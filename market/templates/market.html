@@ -1,0 +1,114 @@
+{% extends 'base.html' %}
+
+{% block title %} Market {% endblock %}
+
+{% block content %}
+<div class="row">
+    <!--  Left Section: Available Items -->
+    <div class="col-8">
+        <h2 class="mb-2 mt-0">Available Items on the Market</h2>
+        <p class="mb-2">Click on one of the items to start shopping</p>
+
+        <!-- Search Form -->
+        <form method="GET" action="{{ url_for('search_items') }}" class="mb-3">
+            <div class="input-group">
+                <input type="text" name="query" class="form-control" placeholder="Search for items..." required>
+                <button class="btn btn-primary" type="submit">Search</button>
+            </div>
+        </form>
+
+        <!-- Category Filter Dropdown -->
+        <div class="dropdown mb-3">
+            <button class="btn btn-secondary dropdown-toggle" type="button" id="categoryDropdown" data-bs-toggle="dropdown">
+                Filter by Category ({{ selected_category if selected_category else 'All' }})
+            </button>
+            <ul class="dropdown-menu">
+                <li><a class="dropdown-item" href="{{ url_for('market_page', category='All') }}">All</a></li>
+                <li><a class="dropdown-item" href="{{ url_for('market_page', category='Fashion') }}">Fashion</a></li>
+                <li><a class="dropdown-item" href="{{ url_for('market_page', category='Electronics') }}">Electronics</a></li>
+                <li><a class="dropdown-item" href="{{ url_for('market_page', category='Sports') }}">Sports</a></li>
+                <li><a class="dropdown-item" href="{{ url_for('market_page', category='Tools') }}">Tools</a></li>
+            </ul>
+        </div>
+
+        <table class="table table-hover table-dark mt-2 text-center">
+            <thead>
+                <tr>
+                    <th>Image</th>
+                    <th>Name</th>
+                    <th>Barcode</th>
+                    <th>Category</th>
+                    <th>Price</th>
+                    <th>Description</th>
+                    <th>Options</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in items %}
+                {% include 'includes/items_modals.html' %}
+                <tr>
+                    <td>
+                        {% if item.image %}
+                            <img src="{{ url_for('static', filename='uploads/' + item.image) }}" 
+                                 width="80" height="80" 
+                                 style="object-fit: cover; border-radius: 5px;" 
+                                 alt="{{ item.name }}">
+                        {% else %}
+                            No Image
+                        {% endif %}
+                    </td>
+                    <td>{{ item.name }}</td>
+                    <td>{{ item.barcode }}</td>
+                    <td>{{ item.category }}</td>
+                    <td><strong>Ksh. {{ item.price }}</strong></td>
+                    <td style="max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                        {{ item.description }}
+                    </td>
+                    <td>
+                        <!-- More Info Button -->
+                        <button class="btn btn-outline-info btn-sm" data-bs-toggle="modal" data-bs-target="#Modal-MoreInfo-{{ item.id }}">
+                            More Info
+                        </button>
+                    
+                        <!-- Purchase Button -->
+                        <button class="btn btn-outline-success btn-sm" data-bs-toggle="modal" data-bs-target="#Modal-PurchaseConfirm-{{ item.id }}">
+                            Purchase
+                        </button>
+
+                        <!-- Contact Seller Button -->
+                         <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#Modal-ContactSeller-{{ item.id }}">
+                            Contact Seller
+                         </button>
+                    </td>        
+                    
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="col-4">
+        <h4 class="mt-3">Need help ?</h4>
+        <p>For any issues or assistance, feel free to reach out to our support team.</p>
+        <br>
+        <div class="row">
+            {% if purchased_items %}
+                {% for item in purchased_items %}
+                <div class="col-md-6">
+                    <div class="card text-center bg-success text-white">
+                        <div class="card-body">
+                            <h5 class="card-title">{{ item.name }}</h5>
+                            <p class="card-text"><strong>Ksh. {{ item.price }}</strong></p>
+                            <p class="card-text small">{{ item.description }}</p>
+                            <p><strong>Purchased</strong></p>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <p class="text-warning text-center">Contact us at: Bidhaamarket1@gmail.com</p>
+            {% endif %}
+        </div>
+    </div>   
+</div>    
+{% endblock %}

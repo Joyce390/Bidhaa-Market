@@ -1,0 +1,92 @@
+<style>
+    .modal-content {
+        background-color: rgb(28, 28, 29);
+        color: white;
+    }
+</style>
+
+<!-- More Info Modal -->
+<div class="modal fade" id="Modal-MoreInfo-{{ item.id }}"
+     tabindex="-1" aria-labelledby="ModalLabel-{{ item.id }}" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">{{ item.name }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p><strong>Description:</strong> {{ item.description }}</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Purchase Confirmation Modal -->
+<div class="modal fade" id="Modal-PurchaseConfirm-{{ item.id }}"
+     tabindex="-1" aria-labelledby="ModalLabel-{{ item.id }}" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">{{ item.name }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form method="POST" action="{{ url_for('purchase_item', item_id=item.id) }}">
+                    {{ purchase_form.hidden_tag() }}
+
+                    <h4 class="text-center">
+                        Are you sure you want to buy <strong>{{ item.name }} for Ksh.{{ item.price }}</strong>?
+                    </h4>
+                    <br>
+                    <h6 class="text-center">
+                        Click "Purchase" to confirm your order.
+                    </h6> 
+                    <br>
+                    <input type="hidden" name="purchased_item_id" value="{{ item.id }}">
+                    <button type="submit" class="btn btn-outline-success w-100">Purchase</button>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Contact Seller Modal -->
+<div class="modal fade" id="Modal-ContactSeller-{{ item.id }}" tabindex="-1" aria-labelledby="ModalLabel-{{ item.id }}" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Contact Seller - {{ item.name }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p><strong>Seller:</strong> {{ item.seller.username }}</p>
+
+                {% if item.seller.phone and item.seller.phone.strip() != "" %}
+                    <p><strong>Phone:</strong> 
+                        <a href="tel:{{ item.seller.phone }}" class="text-info">{{ item.seller.phone }}</a>
+                    </p>
+                {% else %}
+                    <p class="text-muted">Phone: Not Available</p>
+                {% endif %}
+
+                {% if item.seller.email %}
+                    <p><strong>Email:</strong> 
+                        <a href="mailto:{{ item.seller.email }}" class="text-info">{{ item.seller.email }}</a>
+                    </p>
+                {% else %}
+                    <p class="text-muted">Email: Not Available</p>
+                {% endif %}
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+

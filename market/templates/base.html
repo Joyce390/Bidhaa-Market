@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+   <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+      
+      <!-- Bootstrap CSS -->
+      <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/js/all.min.js"></script>
+      
+      <title>{% block title %}{% endblock %}</title>
+      
+      <style>
+         /* Background Styling */
+         body {
+            background-color: #161717;
+            color: white;
+            {% if request.endpoint == 'home_page' %}
+            background-image: url("{{ url_for('static', filename='images/Background.jpg') }}");
+            background-size: cover;
+            background-position: center top 10px;
+            background-repeat: no-repeat;
+            {% endif %}
+         }
+
+         /* Navbar Styling */
+         .navbar a { color: rgb(189, 159, 159); text-decoration: none; }
+         .navbar a:hover { color: #555; text-decoration: underline; }
+
+         /* Flash Messages */
+         .alert { margin-top: 20px; }
+
+         /* Dropdown Menu Background */
+         .dropdown-menu {
+            background-image: url("{{ url_for('static', filename='images/menu-bg.jpg') }}");
+            background-size: cover;
+            background-position: center;
+            color: white;
+         }
+      </style>
+   </head>
+   <body>
+      <!-- Navigation Bar -->
+      <nav class="navbar navbar-expand-md navbar-light bg-light">
+         <div class="container-fluid">
+            <!-- Brand -->
+            <a class="navbar-brand" href="{{ url_for('home_page') }}">Bidhaa Market</a>
+
+            <!-- Navbar Toggle for Mobile -->
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+               <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <!-- Navbar Content -->
+            <div class="collapse navbar-collapse" id="navbarNav">
+               <ul class="navbar-nav me-auto">
+                  <li class="nav-item">
+                     <a class="nav-link" href="{{ url_for('home_page') }}">Home</a>
+                  </li>
+
+                  <!-- Market is always visible -->
+                  <li class="nav-item">
+                     <a class="nav-link" href="{{ url_for('market_page') }}">Market</a>
+                  </li>
+               </ul>
+
+               <!-- Authentication Links -->
+               {% if not current_user.is_authenticated %}
+               <ul class="navbar-nav">
+                  <li class="nav-item">
+                     <a class="nav-link" href="{{ url_for('login') }}">Login</a>
+                  </li>
+                  <li class="nav-item">
+                     <a class="nav-link" href="{{ url_for('register') }}">Register</a>
+                  </li>
+               </ul>
+               {% else %}
+               <ul class="navbar-nav">
+                  <li class="nav-item d-flex align-items-center">
+                    <!-- Small Wallet Box -->
+                    <form action="{{ url_for('top_up') }}" method="post">
+                     <button type="submit" class="btn btn-success text-white rounded">
+                         👜 {{ current_user.budget }}
+                     </button>
+                 </form>
+                        
+                     <!-- Budget Display (Check If Exists) -->
+                     {% if current_user.prettier_budget %}
+                     <span class="text-success fw-bold me-3">
+                     {{ current_user.prettier_budget }}
+                     </span>
+                     {% endif %}
+                  </li>
+
+                  <!-- Welcome Message -->
+                  <li class="nav-item me-3">
+                     <span class="navbar-text">Welcome, {{ current_user.username }}</span>
+                  </li>
+
+                  <!-- Both Dashboards Available -->
+                  <li class="nav-item">
+                     <a href="{{ url_for('customer_dashboard') }}" class="btn btn-primary me-2">Customer Dashboard</a>
+                  </li>
+                  <li class="nav-item">
+                     <a href="{{ url_for('seller_dashboard') }}" class="btn btn-warning">Seller Dashboard</a>
+                  </li>
+                  <li class="nav-item">
+                     <a class="nav-link" href="{{ url_for('logout') }}">Logout</a>
+                  </li>
+               </ul>
+               {% endif %}
+            </div>
+         </div>
+      </nav>
+
+      <!-- Flash Messages -->
+      {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+      <div class="container">
+         {% for category, message in messages %}
+         <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+         </div>
+         {% endfor %}
+      </div>
+      {% endif %}
+      {% endwith %}
+
+      <!-- Dynamic Content -->
+      <div class="container mt-4">
+         {% block content %}{% endblock %}
+      </div>
+
+      <!-- Bootstrap JS -->
+      <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+   </body>
+</html>

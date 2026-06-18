@@ -1,0 +1,14 @@
+{% extends 'base.html' %}
+{% block title %}Order Details{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Order Details</h2>
+
+    <p><strong>Item:</strong> {{ order.item.name }}</p>
+    <p><strong>Buyer:</strong> {{ order.user.username }}</p>
+    <p><strong>Price:</strong> Ksh {{ order.total_price }}</p>
+    <p><strong>Shipping Address:</strong> {{ order.shipping_address }}</p>
+    <p><strong>Contact:</strong> {{ order.user.phone }}</p>
+</div>
+{% endblock %}

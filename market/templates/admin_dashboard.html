@@ -1,0 +1,127 @@
+{% extends 'admin_base.html' %}
+
+{% block title %}Admin Dashboard{% endblock %}
+
+{% block content %}
+<div class="container">
+
+    <div class="row g-4">
+        <div class="col-lg-3 col-md-6">
+            <div class="card shadow-lg text-white bg-info">
+                <div class="card-body text-center">
+                    <h5><i class="fas fa-user"></i> Users</h5>
+                    <h3>{{ users|length }}</h3>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-3 col-md-6">
+            <div class="card shadow-lg text-white bg-warning">
+                <div class="card-body text-center">
+                    <h5><i class="fas fa-box"></i> Items</h5>
+                    <h3>{{ items|length }}</h3>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-3 col-md-6">
+            <div class="card shadow-lg text-white bg-danger">
+                <div class="card-body text-center">
+                    <h5><i class="fas fa-money-bill"></i> Transactions</h5>
+                    <h3>{{ transactions|length }}</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="mt-5">
+        <h3>Unverified Items</h3>
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>Item ID</th>
+                    <th>Name</th>
+                    <th>Seller</th>
+                    <th>Price</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in unverified_items %}
+                <tr>
+                    <td>{{ item.id }}</td>
+                    <td>{{ item.name }}</td>
+                    <td>{{ item.seller.username }}</td>
+                    <td>KES {{ item.price }}</td>
+                    <td>
+                        <form action="{{ url_for('verify_item', item_id=item.id) }}" method="POST" style="display:inline;">
+                            <button type="submit" class="btn btn-success">Verify</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="mt-5">
+        <h3>Transactions</h3>
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>Transaction ID</th>
+                    <th>Buyer</th>
+                    <th>Seller</th>
+                    <th>Amount</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for transaction in transactions %}
+                <tr>
+                    <td>{{ transaction.id }}</td>
+                    <td>{{ transaction.buyer.username }}</td>
+                    <td>{{ transaction.seller.username }}</td>
+                    <td>KES {{ transaction.amount }}</td>
+                    <td>
+                        <a href="{{ url_for('generate_receipt', receipt_id=transaction.id) }}" class="btn btn-primary">Print Receipt</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="mt-4 text-center">
+        <h3>Generate Full Report</h3>
+        <a href="{{ url_for('generate_report') }}" class="btn btn-success">📄 Download Full Report</a>
+    </div>
+
+</div>
+
+<style>
+.container {
+    max-width: 1200px;
+    margin: auto;
+    padding: 20px;
+}
+
+.card {
+    border-radius: 10px;
+    height: 150px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.table {
+    width: 100%;
+    margin-top: 20px;
+}
+
+.table th, .table td {
+    text-align: center;
+}
+</style>
+
+{% endblock %}

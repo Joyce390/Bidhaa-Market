@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+
+{% block title %}Seller Wallet{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1 class="mt-4">Seller Wallet Management</h1>
+    <p><strong>Current Balance:</strong> KES {{ seller_wallet.balance if seller_wallet else 0 }}</p>
+
+    <!-- Withdraw Section (optional) -->
+    <h3 class="mt-4">Withdraw Funds:</h3>
+    <form action="{{ url_for('withdraw') }}" method="post">
+        <label for="mpesa_number">M-Pesa Number:</label>
+        <input type="text" name="mpesa_number" required>
+    
+        <label for="withdraw_amount">Amount:</label>
+        <input type="number" name="withdraw_amount" min="1" required>
+    
+        <button type="submit">Withdraw</button>
+    </form>
+</div>
+{% endblock %}

@@ -1,0 +1,20 @@
+<form method="POST" class="p-4 shadow rounded bg-white">
+    {{ form.hidden_tag() }}
+    
+    <div class="mb-3">
+        <label for="phone" class="form-label fw-bold">📞 Phone Number:</label>
+        {{ form.phone(class="form-control border-primary shadow-sm", placeholder="Enter your phone number") }}
+        
+        {% if form.phone.errors %}
+            <div class="text-danger mt-2">
+                {% for error in form.phone.errors %}
+                    <p>{{ error }}</p>
+                {% endfor %}
+            </div>
+        {% endif %}
+    </div>
+    
+    <button type="submit" class="btn btn-primary w-100 fw-bold">
+        💾 Save Changes
+    </button>
+</form>

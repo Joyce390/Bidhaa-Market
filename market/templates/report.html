@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Report</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        h2, h3 { text-align: center; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid black; padding: 8px; text-align: center; }
+        th { background-color: #f2f2f2; }
+    </style>
+</head>
+<body>
+    <h2>Bidhaa Market Report</h2>
+
+    <h3>User Summary</h3>
+    <table>
+        <thead>
+            <tr><th>ID</th><th>Username</th><th>Email</th><th>Join Date</th></tr>
+        </thead>
+        <tbody>
+            {% for user in users %}
+            <tr>
+                <td>{{ user.id }}</td>
+                <td>{{ user.username }}</td>
+                <td>{{ user.email }}</td>
+                <td>
+                    {% if user.created_at %}
+                      {{ user.created_at.strftime('%Y-%m-%d') }}
+                    {% else %}
+                      N/A
+                    {% endif %}
+                  </td>
+                              </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <h3>Item Summary</h3>
+    <table>
+        <thead>
+            <tr><th>ID</th><th>Name</th><th>Seller</th><th>Price</th><th>Stock</th></tr>
+        </thead>
+        <tbody>
+            {% for item in items %}
+            <tr>
+                <td>{{ item.id }}</td>
+                <td>{{ item.name }}</td>
+                <td>{{ item.seller.username }}</td>
+                <td>KES {{ item.price }}</td>
+                <td>{{ item.stock }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <h3>Transaction Summary</h3>
+    <table>
+        <thead>
+            <tr><th>ID</th><th>Buyer</th><th>Seller</th><th>Amount</th><th>Date</th></tr>
+        </thead>
+        <tbody>
+            {% for transaction in transactions %}
+            <tr>
+                <td>{{ transaction.id }}</td>
+                <td>{{ transaction.buyer.username }}</td>
+                <td>{{ transaction.seller.username }}</td>
+                <td>KES {{ transaction.amount }}</td>
+                <td>{{ transaction.date.strftime('%Y-%m-%d') }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>
+

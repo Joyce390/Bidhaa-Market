@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}
+    Login Page
+{% endblock %}
+
+{% block content %}
+<body class="text-center">
+    <div class="container">
+        <form method="POST" class="form-register" style="color: aliceblue;">
+            {{ form.hidden_tag() }}
+
+            <img class="mb-4" src="{{ url_for('static', filename='images/logo.jpg') }}" alt="Logo" style="width: 150px; height: auto;">
+
+            <h1 class="h3 mb-3 font-weight-normal">Please Login</h1>
+            <br>
+
+            {# Username Field #}
+            <div class="form-group">
+                {{ form.username.label(class="form-label") }}
+                {{ form.username(class="form-control", placeholder="User Name") }}
+            </div>
+
+            {# Password Field #}
+            <div class="form-group">
+                {{ form.password.label(class="form-label") }}
+                {{ form.password(class="form-control", placeholder="Password") }}
+            </div>
+            <br>
+
+            <a class="btn btn-sm btn-secondary" href="{{ url_for('forgot_password') }}">Forgot password</a>
+
+
+            <br>
+
+            <div class="checkbox mb-3">
+                <h6>Do not have an account?</h6>
+                <a class="btn btn-sm btn-secondary" href="{{ url_for('register') }}">Register</a>
+            </div>
+
+            {# Submit Button #}
+            {{ form.submit(class="btn btn-lg btn-block btn-primary") }}
+        </form>
+    </div>
+</body>
+{% endblock %}
