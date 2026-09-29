@@ -1,35 +1,164 @@
 {% extends 'base.html' %}
 
-{% block title %}{% endblock %}
+{% block title %}My Dashboard{% endblock %}
 
 {% block content %}
-<div class="container mt-4">
-    <h3>Your Purchases & Balance, Welcome!</h3>
+<style>
+    .dash .stat-card { border: 0; border-left: 4px solid var(--accent); }
+    .dash .stat-card .stat-value { font-size: 1.75rem; font-weight: 700; }
+    .dash .stat-card .stat-icon { font-size: 1.6rem; color: var(--accent); opacity: .85; }
+    .dash .purchase-img { height: 170px; object-fit: cover; }
+    .dash .purchase-noimg { height: 170px; font-size: 2.5rem; }
+    .dash .purchase-card { transition: transform .15s ease, box-shadow .15s ease; }
+    .dash .purchase-card:hover { transform: translateY(-3px); box-shadow: 0 .5rem 1rem rgba(0,0,0,.4); }
+    .dash .purchase-card.delivered { outline: 2px solid var(--bs-success); }
+    .dash .ribbon { position: absolute; top: 10px; left: 10px; }
 
+    /* Delivery progress: Ordered -> Shipping -> Shipped -> Delivered */
+    .dash .step-labels { display: flex; justify-content: space-between; font-size: .7rem; color: var(--bs-secondary-color); }
+    .dash .step-labels .done { color: var(--bs-body-color); }
+</style>
 
-    <div class="row">
-        
-        <!-- Orders Section -->
-        <div class="col-md-3">
-            <div class="card text-white bg-primary mb-3">
-                <div class="card-header">My Orders</div>
-                <div class="card-body">
-                    <h5 class="card-title">Track Your Orders</h5>
-                    <p class="card-text">View the status of your purchases.</p>
-                    <a href="{{ url_for('customer_orders') }}" class="btn btn-light">📦View Orders</a>
+<div class="dash mb-5">
+
+    <!-- Header -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+        <div>
+            <h2 class="mb-0">Hi {{ current_user.username }} 👋</h2>
+            <p class="text-body-secondary mb-0">Your account can <strong>buy</strong> and <strong>sell</strong>. You pay for items when they are delivered.</p>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{{ url_for('market_page') }}" class="btn btn-primary"><i class="fas fa-shopping-bag"></i> Shop the Market</a>
+            <a href="{{ url_for('seller_dashboard') }}" class="btn btn-brand"><i class="fas fa-store"></i> Sell an Item</a>
+        </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-lg-3">
+            <div class="card stat-card h-100" style="--accent: var(--bs-success)">
+                <div class="card-body d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="text-body-secondary small">Items bought</div>
+                        <div class="stat-value">{{ stats.bought }}</div>
+                        <div class="text-body-secondary small">Delivered to you</div>
+                    </div>
+                    <i class="fas fa-check-circle stat-icon"></i>
                 </div>
             </div>
         </div>
-
-        <!-- Wallet Balance Section -->
-        <div class="col-md-3">
-            <div class="card text-white bg-success mb-3">
-                <div class="card-header">Wallet Balance</div>
-                <div class="card-body">
-                    <h5 class="card-title">Available Balance</h5>
-                    <p class="card-text">Current Balance: <strong>{{ current_user.prettier_budget }}</strong></p>
-                    <a href="{{ url_for('wallet_page') }}" class="btn btn-light">💼Manage Wallet</a>
+        <div class="col-6 col-lg-3">
+            <div class="card stat-card h-100" style="--accent: var(--bs-warning)">
+                <div class="card-body d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="text-body-secondary small">On the way</div>
+                        <div class="stat-value">{{ stats.on_the_way }}</div>
+                        <div class="text-body-secondary small">Not yet delivered</div>
+                    </div>
+                    <i class="fas fa-truck stat-icon"></i>
                 </div>
+            </div>
+        </div>
+        <div class="col-6 col-lg-3">
+            <div class="card stat-card h-100" style="--accent: var(--bs-danger)">
+                <div class="card-body d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="text-body-secondary small">To pay on delivery</div>
+                        <div class="stat-value">Ksh {{ '{:,.0f}'.format(stats.to_pay) }}</div>
+                        <div class="text-body-secondary small">Have this ready</div>
+                    </div>
+                    <i class="fas fa-hand-holding-usd stat-icon"></i>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-lg-3">
+            <div class="card stat-card h-100" style="--accent: var(--bs-info)">
+                <div class="card-body d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="text-body-secondary small">Total spent</div>
+                        <div class="stat-value">Ksh {{ '{:,.0f}'.format(stats.total_spent) }}</div>
+                        <div class="text-body-secondary small">On delivered items</div>
+                    </div>
+                    <i class="fas fa-receipt stat-icon"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- My purchases -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h4 class="mb-0"><i class="fas fa-shopping-bag"></i> My Purchases</h4>
+        {% if orders %}<a href="{{ url_for('customer_orders') }}" class="small">Manage orders →</a>{% endif %}
+    </div>
+
+    {% if orders %}
+    <div class="row g-3 mb-4">
+        {% for order in orders %}
+        {% set steps = ['Ordered', 'Shipping', 'Shipped', 'Delivered'] %}
+        {% set step_index = {'Pending': 0, 'Processing': 0, 'Shipping in Process': 1, 'Shipped': 2, 'Delivered': 3}.get(order.shipping_status, 0) %}
+        <div class="col-sm-6 col-lg-4 col-xl-3">
+            <div class="card purchase-card h-100 {% if order.shipping_status == 'Delivered' %}delivered{% endif %}">
+                <div class="position-relative">
+                    {% if order.item.image %}
+                    <img src="{{ url_for('static', filename='uploads/' + order.item.image) }}" class="card-img-top purchase-img" alt="{{ order.item.name }}">
+                    {% else %}
+                    <div class="card-img-top purchase-noimg bg-body-tertiary text-body-secondary d-flex align-items-center justify-content-center"><i class="fas fa-box"></i></div>
+                    {% endif %}
+                    {% if order.shipping_status == 'Delivered' %}
+                    <span class="badge bg-success ribbon"><i class="fas fa-check"></i> Bought</span>
+                    {% else %}
+                    <span class="badge bg-warning text-dark ribbon"><i class="fas fa-truck"></i> On the way</span>
+                    {% endif %}
+                </div>
+                <div class="card-body d-flex flex-column">
+                    <h6 class="card-title mb-1">{{ order.item.name }}</h6>
+                    <div class="text-body-secondary small mb-2">from {{ order.seller.username }} · {{ order.order_date.strftime('%d %b %Y') }}</div>
+
+                    <div class="progress mt-2" style="height: 6px;" role="progressbar" aria-label="Delivery progress"
+                         aria-valuenow="{{ step_index }}" aria-valuemin="0" aria-valuemax="3">
+                        <div class="progress-bar bg-success" style="width: {{ [8, 38, 70, 100][step_index] }}%"></div>
+                    </div>
+                    <div class="step-labels mt-1">
+                        {% for s in steps %}<span class="{% if loop.index0 <= step_index %}done{% endif %}">{{ s }}</span>{% endfor %}
+                    </div>
+
+                    <div class="mt-auto pt-2 d-flex justify-content-between align-items-center">
+                        <span class="fw-bold">Ksh {{ '{:,.0f}'.format(order.total_price) }}</span>
+                        {% if order.shipping_status == 'Delivered' %}
+                        <span class="badge text-bg-success">Paid on delivery</span>
+                        {% else %}
+                        <span class="badge text-bg-danger">Pay on delivery</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="card mb-4">
+        <div class="card-body text-center py-5">
+            <div class="display-6 mb-2">🛍️</div>
+            <h5>You haven't bought anything yet</h5>
+            <p class="text-body-secondary">Browse the market, place an order, and pay when it's delivered to your door.</p>
+            <a href="{{ url_for('market_page') }}" class="btn btn-primary">Start Shopping</a>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Selling teaser: the same account can sell -->
+    <div class="card">
+        <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <div>
+                <h6 class="mb-1"><i class="fas fa-store text-warning"></i> Selling on Bidhaa Market</h6>
+                <div class="text-body-secondary small">
+                    {% if stats.selling %}You have {{ stats.selling }} item{{ '' if stats.selling == 1 else 's' }} listed for sale.
+                    {% else %}Got something to sell? List it with the same account, no extra sign-up needed.{% endif %}
+                </div>
+            </div>
+            <div class="d-flex gap-2">
+                <a href="{{ url_for('add_item') }}" class="btn btn-sm btn-success"><i class="fas fa-plus"></i> List an Item</a>
+                <a href="{{ url_for('seller_dashboard') }}" class="btn btn-sm btn-outline-primary">Seller Dashboard</a>
             </div>
         </div>
     </div>

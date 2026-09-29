@@ -3,77 +3,104 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Admin Panel{% endblock %}</title>
+    <title>{% block title %}Admin Panel{% endblock %} · Bidhaa Admin</title>
 
     <!-- Bootstrap & FontAwesome -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root { --bm-navy: #1d2b4f; --bm-blue: #1f7ae0; --bm-orange: #f47b20; --bs-body-font-family: 'Inter', system-ui, sans-serif; }
+        body { background: #f4f6fb; color: #1f2533; }
+        h1, h2, h3, h4, .brand { font-family: 'Poppins', 'Inter', sans-serif; }
+        .admin-shell { min-height: 100vh; }
+        .sidebar { width: 240px; flex-shrink: 0; background: var(--bm-navy); color: #fff; }
+        .sidebar .brand { display: flex; align-items: center; gap: .6rem; font-weight: 700; font-size: 1.1rem; color: #fff; text-decoration: none; }
+        .sidebar .brand img { height: 38px; border-radius: 8px; background: #fff; padding: 2px; }
+        .sidebar .section { font-size: .7rem; text-transform: uppercase; letter-spacing: .08em; color: #8e9bbb; margin: 1.25rem .75rem .4rem; }
+        .sidebar .nav-link { color: #cdd6ea; border-radius: 8px; padding: .55rem .75rem; display: flex; align-items: center; gap: .6rem; }
+        .sidebar .nav-link:hover { background: rgba(255, 255, 255, .07); color: #fff; }
+        .sidebar .nav-link.active { background: var(--bm-blue); color: #fff; font-weight: 600; }
+        .sidebar .nav-link i { width: 18px; text-align: center; }
+        .card { border: 0; border-radius: 12px; box-shadow: 0 1px 3px rgba(16, 24, 40, .06), 0 1px 2px rgba(16, 24, 40, .04); }
+        .card-header { background: #fff !important; border-bottom: 1px solid #eef0f5; border-radius: 12px 12px 0 0 !important; }
+        .topbar { background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(16, 24, 40, .06); }
+        .dropdown-menu { border: 0; border-radius: 12px; box-shadow: 0 10px 30px rgba(16, 24, 40, .12); padding: .5rem; }
+        .dropdown-item { border-radius: 8px; }
+        .alert { border: 0; border-radius: 10px; }
+        @media (max-width: 767.98px) {
+            .admin-shell { flex-direction: column; }
+            .sidebar { width: 100%; }
+        }
+    </style>
 </head>
 <body>
-    <div class="d-flex">
+    {% set ep = request.endpoint %}
+    <div class="d-flex admin-shell">
         <!-- Sidebar -->
-        <nav class="sidebar bg-dark text-white vh-100 p-3">
-            <h2 class="text-center mb-4">Admin Panel</h2>
-            <ul class="nav flex-column">
-                <li class="nav-item">
-                    <a class="nav-link text-white" href="{{ url_for('admin_dashboard') }}">
-                        <i class="fas fa-home"></i> Dashboard
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link text-white" href="{{ url_for('manage_users') }}">
-                        <i class="fas fa-users"></i> Users
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link text-white" href="{{ url_for('manage_items') }}">
-                        <i class="fas fa-box"></i> Items
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link text-white" href="{{ url_for('manage_transactions') }}">
-                        <i class="fas fa-money-bill"></i> Transactions
-                    </a>
-                </li>
+        <nav class="sidebar p-3">
+            <a class="brand mb-2" href="{{ url_for('admin_dashboard') }}">
+                <img src="{{ url_for('static', filename='images/Logo.jpg') }}" alt="Bidhaa logo"> Bidhaa Admin
+            </a>
+
+            <div class="section">Manage</div>
+            <ul class="nav flex-column gap-1">
+                <li class="nav-item"><a class="nav-link {% if ep == 'admin_dashboard' %}active{% endif %}" href="{{ url_for('admin_dashboard') }}"><i class="fas fa-home"></i> Dashboard</a></li>
+                <li class="nav-item"><a class="nav-link {% if ep == 'manage_orders' %}active{% endif %}" href="{{ url_for('manage_orders') }}"><i class="fas fa-truck"></i> Orders</a></li>
+                <li class="nav-item"><a class="nav-link {% if ep == 'manage_items' %}active{% endif %}" href="{{ url_for('manage_items') }}"><i class="fas fa-box"></i> Items</a></li>
+                <li class="nav-item"><a class="nav-link {% if ep == 'manage_users' %}active{% endif %}" href="{{ url_for('manage_users') }}"><i class="fas fa-users"></i> Users</a></li>
+            </ul>
+
+            <div class="section">Download data</div>
+            <ul class="nav flex-column gap-1">
+                <li class="nav-item"><a class="nav-link" href="{{ url_for('admin_export', dataset='orders') }}"><i class="fas fa-file-csv"></i> Orders (Excel/CSV)</a></li>
+                <li class="nav-item"><a class="nav-link" href="{{ url_for('admin_export', dataset='items') }}"><i class="fas fa-file-csv"></i> Items (Excel/CSV)</a></li>
+                <li class="nav-item"><a class="nav-link" href="{{ url_for('admin_export', dataset='users') }}"><i class="fas fa-file-csv"></i> Users (Excel/CSV)</a></li>
+                <li class="nav-item"><a class="nav-link" href="{{ url_for('generate_report') }}"><i class="fas fa-file-pdf"></i> Full report (PDF)</a></li>
+            </ul>
+
+            <div class="section">Site</div>
+            <ul class="nav flex-column gap-1">
+                <li class="nav-item"><a class="nav-link" href="{{ url_for('market_page') }}"><i class="fas fa-store"></i> View market</a></li>
             </ul>
         </nav>
 
         <!-- Main Content -->
-        <div class="main-content flex-grow-1 p-4">
-            <header class="d-flex justify-content-between align-items-center bg-light shadow-sm p-3 mb-4">
-                <h1 class="h3">Admin Dashboard</h1>
+        <div class="flex-grow-1 p-3 p-md-4" style="min-width: 0;">
+            <header class="topbar d-flex justify-content-between align-items-center p-3 mb-4">
+                <h1 class="h4 mb-0">{{ self.title() }}</h1>
                 <div class="dropdown">
-                    <button class="btn btn-secondary dropdown-toggle" type="button" id="adminDropdown" data-bs-toggle="dropdown">
-                        <i class="fas fa-user-cog"></i> Admin
+                    <button class="btn btn-light border dropdown-toggle" type="button" id="adminDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="fas fa-user-shield me-1"></i> {{ current_user.username }}
                     </button>
-                    <ul class="dropdown-menu dropdown-menu-end">
-                        <li><a class="dropdown-item" href="{{ url_for('edit_profile') }}"><i class="fas fa-user"></i> Profile</a></li>
-                        <li><a class="dropdown-item" href="{{ url_for('admin_setting') }}"><i class="fas fa-cog"></i> Settings</a></li>
+                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="adminDropdown">
+                        <li><a class="dropdown-item" href="{{ url_for('home_page') }}"><i class="fas fa-globe fa-fw me-1"></i> View site</a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('edit_profile') }}"><i class="fas fa-user fa-fw me-1"></i> Edit profile</a></li>
                         <li><hr class="dropdown-divider"></li>
-                        <form action="{{ url_for('logout') }}" method="POST" onsubmit="return confirmLogout()">
-                            <button type="submit">Logout</button>
-                        </form>
+                        <li><a class="dropdown-item text-danger" href="{{ url_for('logout') }}" onclick="return confirm('Are you sure you want to log out?');"><i class="fas fa-sign-out-alt fa-fw me-1"></i> Log out</a></li>
                     </ul>
                 </div>
             </header>
 
+            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% for category, message in messages %}
+            <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+            {% endfor %}
+            {% endwith %}
+
             <main>
                 {% block content %}{% endblock %}
             </main>
+
+            <footer class="text-center text-secondary small py-4">&copy; 2026 Bidhaa Market · Admin panel</footer>
         </div>
     </div>
 
-    <footer class="text-center py-3 bg-dark text-white mt-4">
-        <p>&copy; 2025 Bidhaa Market</p>
-    </footer>
-
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        function confirmLogout() {
-            return confirm("Are you sure you want to log out?");
-        }
-    </script>
-    
 </body>
 </html>

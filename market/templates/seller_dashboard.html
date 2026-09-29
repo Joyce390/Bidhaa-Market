@@ -3,94 +3,210 @@
 {% block title %}Seller Dashboard{% endblock %}
 
 {% block content %}
-<div class="container mt-4">
-    <h3>Start Selling & Grow Your Business!</h3>
+<style>
+    .dash .stat-card { border: 0; border-left: 4px solid var(--accent); }
+    .dash .stat-card .stat-value { font-size: 1.75rem; font-weight: 700; }
+    .dash .stat-card .stat-icon { font-size: 1.6rem; color: var(--accent); opacity: .85; }
+    .dash .item-thumb { width: 56px; height: 56px; object-fit: cover; border-radius: 6px; }
+    .dash .no-thumb { width: 56px; height: 56px; border-radius: 6px; display: flex; align-items: center; justify-content: center; }
+    .dash .truncate { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .dash .notif-new { border-left: 3px solid var(--bs-warning); }
+</style>
 
-    <div class="row">
+<div class="dash mb-5">
 
-        <div class="col-md-3">
-            <div class="card text-white bg-success mb-3">
-                <div class="card-header">Wallet Balance</div>
-                <div class="card-body">
-                    <h5 class="card-title">Available Balance</h5>
-                    <p class="card-text"><strong>Ksh {{ current_user.wallet_balance }}</strong></p>
-                    <a href="{{ url_for('seller_wallet') }}" class="btn btn-light">💼 Manage Wallet</a>
+    <!-- Header -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+        <div>
+            <h2 class="mb-0">Seller Dashboard</h2>
+            <p class="text-body-secondary mb-0">Welcome back, {{ current_user.username }}. Buyers pay you on delivery.</p>
+        </div>
+        <a href="{{ url_for('add_item') }}" class="btn btn-success"><i class="fas fa-plus"></i> Add New Item</a>
+    </div>
+
+    <!-- Stats -->
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-lg-3">
+            <div class="card stat-card h-100" style="--accent: var(--bs-success)">
+                <div class="card-body d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="text-body-secondary small">Total sales</div>
+                        <div class="stat-value">Ksh {{ '{:,.0f}'.format(stats.total_sales) }}</div>
+                        <div class="text-body-secondary small">{{ stats.delivered }} delivered &amp; paid</div>
+                    </div>
+                    <i class="fas fa-coins stat-icon"></i>
                 </div>
-                <a href="{{ url_for('transactions') }}" class="btn btn-info">View Transactions</a>
             </div>
         </div>
-
-        <div class="col-md-3">
-            <div class="card text-white bg-warning mb-3">
-                <div class="card-header">Orders</div>
-                <div class="card-body">
-                    <h5 class="card-title">Manage Orders</h5>
-                    <p class="card-text">Check pending and completed orders.</p>
-                    <a href="{{ url_for('seller_orders') }}" class="btn btn-light">📦 View Orders</a>
+        <div class="col-6 col-lg-3">
+            <a href="{{ url_for('seller_orders') }}" class="text-decoration-none">
+                <div class="card stat-card h-100" style="--accent: var(--bs-warning)">
+                    <div class="card-body d-flex justify-content-between align-items-start">
+                        <div>
+                            <div class="text-body-secondary small">Orders to ship</div>
+                            <div class="stat-value">{{ stats.orders_to_ship }}</div>
+                            <div class="text-body-secondary small">{{ stats.awaiting_delivery }} on the way</div>
+                        </div>
+                        <i class="fas fa-truck stat-icon"></i>
+                    </div>
+                </div>
+            </a>
+        </div>
+        <div class="col-6 col-lg-3">
+            <div class="card stat-card h-100" style="--accent: var(--bs-info)">
+                <div class="card-body d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="text-body-secondary small">Live on market</div>
+                        <div class="stat-value">{{ stats.live_items }}</div>
+                        <div class="text-body-secondary small">{{ stats.sold_items }} sold</div>
+                    </div>
+                    <i class="fas fa-store stat-icon"></i>
                 </div>
             </div>
         </div>
-
-        <div class="col-md-3">
-            <div class="card text-white bg-info mb-3">
-                <div class="card-header">Your Listed Items</div>
-                <div class="card-body">
-                    <h5 class="card-title">Manage Your Products</h5>
-                    <p class="card-text">View and edit your listed items.</p>
-                    <a href="{{ url_for('seller_listed_items') }}" class="btn btn-light">🛒 View Items</a>
+        <div class="col-6 col-lg-3">
+            <div class="card stat-card h-100" style="--accent: var(--bs-secondary)">
+                <div class="card-body d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="text-body-secondary small">Hidden by admin</div>
+                        <div class="stat-value">{{ stats.hidden_items }}</div>
+                        <div class="text-body-secondary small">New items go live instantly</div>
+                    </div>
+                    <i class="fas fa-hourglass-half stat-icon"></i>
                 </div>
             </div>
         </div>
     </div>
 
-    <div class="container mt-5" id="listed-items">
-        <h3>Your Listed Items</h3>
-        <a href="{{ url_for('add_item') }}" class="btn btn-success mb-3">➕ Add New Item</a>
-
-        <table class="table table-striped">
-            <thead>
-                <tr>
-                    <th>Image</th>
-                    <th>Item Name</th>
-                    <th>Barcode</th>  
-                    <th>Price</th>
-                    <th>Category</th>
-                    <th>Description</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for item in items %}
-                <tr>
-                    <td>
-                        {% if item.image %}
-                            <img src="{{ url_for('static', filename='uploads/' + item.image) }}" 
-                                 alt="{{ item.name }}" width="80" height="80" class="img-thumbnail">
-                        {% else %}
-                            No Image
-                        {% endif %}
-                    </td>
-                    <td>{{ item.name }}</td>
-                    <td>{{ item.barcode }}</td> 
-                    <td>Ksh {{ item.price }}</td>
-                    <td>{{ item.category }}</td>
-                    <td>{{ item.description }}</td>
-                    <td>
-                        <a href="{{ url_for('edit_item', item_id=item.id) }}" class="btn btn-warning btn-sm">✏ Edit</a>
-                        <form action="{{ url_for('delete_item', item_id=item.id) }}" method="POST" style="display:inline;">
-                            <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Are you sure?')">🗑 Delete</button>
-                        </form>
-                    </td>
-                </tr>
+    <div class="row g-3 mb-4">
+        <!-- Active orders -->
+        <div class="col-lg-8">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="fas fa-box"></i> Active orders</span>
+                    <a href="{{ url_for('seller_orders') }}" class="small">View all orders →</a>
+                </div>
+                {% if active_orders %}
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Item</th>
+                                <th>Buyer</th>
+                                <th>Deliver to</th>
+                                <th>Amount</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for order in active_orders %}
+                            <tr>
+                                <td>{{ order.item.name }}</td>
+                                <td>{{ order.user.username }}</td>
+                                <td>{{ order.shipping_town or '-' }}</td>
+                                <td>Ksh {{ '{:,.0f}'.format(order.total_price) }}</td>
+                                <td>
+                                    <span class="badge
+                                        {% if order.shipping_status == 'Shipped' %}bg-primary
+                                        {% elif order.shipping_status == 'Shipping in Process' %}bg-info
+                                        {% else %}bg-warning text-dark{% endif %}">{{ order.shipping_status }}</span>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
                 {% else %}
-                <tr>
-                    <td colspan="7" class="text-center">No items listed yet.</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+                <div class="card-body text-body-secondary">No active orders right now. New orders will appear here.</div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Notifications -->
+        <div class="col-lg-4">
+            <div class="card h-100">
+                <div class="card-header"><i class="fas fa-bell"></i> Notifications</div>
+                {% if notifications %}
+                <ul class="list-group list-group-flush">
+                    {% for n in notifications %}
+                    <li class="list-group-item {% if n.id in unread_ids %}notif-new{% endif %}">
+                        <div class="small">
+                            {% if n.id in unread_ids %}<span class="badge bg-warning text-dark me-1">New</span>{% endif %}
+                            {{ n.message }}
+                        </div>
+                        <div class="text-body-secondary" style="font-size: .75rem;">{{ n.date_created.strftime('%d %b %Y, %H:%M') }}</div>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <div class="card-body text-body-secondary">No notifications yet.</div>
+                {% endif %}
+            </div>
+        </div>
     </div>
-</div> 
+
+    <!-- Listed items -->
+    <div class="card" id="listed-items">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span><i class="fas fa-tags"></i> Your listed items ({{ items|length }})</span>
+            <a href="{{ url_for('add_item') }}" class="btn btn-sm btn-outline-success"><i class="fas fa-plus"></i> Add item</a>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th></th>
+                        <th>Item</th>
+                        <th>Price</th>
+                        <th>Category</th>
+                        <th>Status</th>
+                        <th>Description</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in items %}
+                    <tr>
+                        <td>
+                            {% if item.image %}
+                                <img src="{{ url_for('static', filename='uploads/' + item.image) }}" alt="{{ item.name }}" class="item-thumb">
+                            {% else %}
+                                <div class="no-thumb bg-body-tertiary text-body-secondary"><i class="fas fa-image"></i></div>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="fw-semibold">{{ item.name }}</div>
+                            <div class="text-body-secondary small">#{{ item.barcode }}</div>
+                        </td>
+                        <td class="text-nowrap">Ksh {{ '{:,.0f}'.format(item.price) }}</td>
+                        <td>{{ item.category }}</td>
+                        <td>
+                            {% if item.sold %}
+                                <span class="badge bg-secondary">Sold</span>
+                            {% elif item.verified %}
+                                <span class="badge bg-success">Live</span>
+                            {% else %}
+                                <span class="badge bg-warning text-dark" title="An admin hid this item from the market. Contact support if you think this is a mistake.">Hidden by admin</span>
+                            {% endif %}
+                        </td>
+                        <td class="truncate" title="{{ item.description }}">{{ item.description }}</td>
+                        <td class="text-end text-nowrap">
+                            <a href="{{ url_for('edit_item', item_id=item.id) }}" class="btn btn-outline-warning btn-sm"><i class="fas fa-pen"></i> Edit</a>
+                            <form action="{{ url_for('delete_item', item_id=item.id) }}" method="POST" class="d-inline">
+                                <button type="submit" class="btn btn-outline-danger btn-sm" onclick="return confirm('Delete this item?')"><i class="fas fa-trash"></i> Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center text-body-secondary py-4">
+                            You haven't listed any items yet. <a href="{{ url_for('add_item') }}">Add your first item</a>.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
 {% endblock %}
-
-

@@ -3,6 +3,8 @@ import os
 import uuid
 import random
 import logging
+import csv
+import io
 from functools import wraps
 from flask import abort
 from io import BytesIO
@@ -18,14 +20,9 @@ from PIL import Image
 from flask import current_app as app
 from market import db, bcrypt
 from datetime import datetime
-from market.mpesa import MpesaAPI
 from market.models import User, Wallet, Item, Order, Sale, OwnedItem, Transaction, Notification
 from market.forms import RegisterForm, LoginForm, SellItemForm, AddItemForm, PurchaseForm, PurchaseItemForm, ItemForm, EditItemForm, EditProfileForm, AdminSettingsForm
 from market.decorators import admin_required  
-
-
-def get_transaction_by_id(receipt_id):
-    return Transaction.query.get(receipt_id)
 
 
 def admin_required(f):
@@ -70,13 +67,27 @@ def home_page():
 @app.route('/seller_dashboard')
 @login_required
 def seller_dashboard():
-    items = Item.query.filter_by(seller_id=current_user.id).all()
+    items = Item.query.filter_by(seller_id=current_user.id).order_by(Item.id.desc()).all()
 
-    orders = Order.query.filter_by(seller_id=current_user.id).all()
+    orders = Order.query.filter_by(seller_id=current_user.id).order_by(Order.order_date.desc()).all()
+    active_orders = [o for o in orders if o.shipping_status not in ('Delivered',)]
 
-    total_sales = db.session.query(db.func.sum(Order.total_price)).filter_by(seller_id=current_user.id).scalar() or 0.0
+    # Buyers pay on delivery, so only delivered orders count as sales
+    total_sales = db.session.query(db.func.sum(Order.total_price)).filter_by(seller_id=current_user.id, shipping_status='Delivered').scalar() or 0.0
+
+    stats = {
+        'total_sales': total_sales,
+        'orders_to_ship': sum(1 for o in orders if o.shipping_status in ('Pending', 'Processing', 'Shipping in Process')),
+        'awaiting_delivery': sum(1 for o in orders if o.shipping_status == 'Shipped'),
+        'delivered': sum(1 for o in orders if o.shipping_status == 'Delivered'),
+        'live_items': sum(1 for i in items if i.verified and not i.sold),
+        'hidden_items': sum(1 for i in items if not i.verified and not i.sold),
+        'sold_items': sum(1 for i in items if i.sold),
+    }
 
     notifications = Notification.query.filter_by(seller_id=current_user.id).order_by(Notification.date_created.desc()).limit(10).all()
+    # Remember which ones are new before marking them read, so the page can highlight them
+    unread_ids = {n.id for n in notifications if n.status == 'unread'}
 
     Notification.query.filter_by(seller_id=current_user.id, status='unread').update({'status': 'read'})
     db.session.commit()
@@ -84,89 +95,44 @@ def seller_dashboard():
     return render_template(
         'seller_dashboard.html',
         items=items,
-        orders=orders,
-        total_sales=total_sales,
-        notifications=notifications
+        active_orders=active_orders[:5],
+        stats=stats,
+        notifications=notifications,
+        unread_ids=unread_ids
     )
 
 
 @app.route('/seller/orders')
+@login_required
 def seller_orders():
     orders = Order.query.filter_by(seller_id=current_user.id).all()  # Get orders for the seller
     return render_template('seller_orders.html', orders=orders)
 
 
 
-@app.route('/seller_wallet', methods=['GET', 'POST'])
-@login_required
-def seller_wallet():
-    # Fetch the seller's wallet
-    seller_wallet = Wallet.query.filter_by(user_id=current_user.id).first()
-
-    if not seller_wallet:
-        flash("You don't have a wallet yet!", "warning")
-        return redirect(url_for('seller_dashboard'))  # Redirect if no wallet exists
-
-    if request.method == 'POST':
-        withdraw_amount = float(request.form.get('withdraw_amount'))
-        
-        if withdraw_amount <= 0:
-            flash("Invalid withdrawal amount!", 'danger')
-        elif seller_wallet.balance >= withdraw_amount:
-            seller_wallet.balance -= withdraw_amount
-            db.session.commit()
-            flash(f"Successfully withdrew KES {withdraw_amount} from your wallet.", 'success')
-        else:
-            flash("Insufficient funds to withdraw.", 'danger')
-
-    return render_template('seller_wallet.html', seller_wallet=seller_wallet)
-
-
-
-@app.route('/market', defaults={'category': 'All'}, methods=['GET', 'POST'])
-@app.route('/market/<category>', methods=['GET', 'POST'])
+@app.route('/market', defaults={'category': 'All'})
+@app.route('/market/<category>')
 @login_required
 def market_page(category):
-    purchase_form = PurchaseItemForm()
+    query = request.args.get('q', '').strip()
 
-    if request.method == "POST":
-        purchased_item_id = request.form.get('purchased_item_id')
-        if not purchased_item_id:
-            flash(" No item selected for purchase!", category='danger')
-            return redirect(url_for('market_page', category=category))
+    # Only items buyers can actually order: not hidden by an admin and not sold yet
+    items = Item.query.filter(Item.verified.is_(True), Item.sold.is_(False))
+    if category != "All":
+        items = items.filter(Item.category == category)
+    if query:
+        items = items.filter(Item.name.ilike(f"%{query}%") | Item.description.ilike(f"%{query}%"))
+    items = items.order_by(Item.id.desc()).all()
 
-        p_item_object = Item.query.get(purchased_item_id)
-        if not p_item_object:
-            flash(" Item not found!", category='danger')
-            return redirect(url_for('market_page', category=category))
-
-        if current_user.wallet and current_user.wallet.withdraw(p_item_object.price):
-            p_item_object.owner = current_user.id  
-            db.session.commit()
-            flash(f" You purchased {p_item_object.name} for {p_item_object.price}!", category='success')
-        else:
-            flash(f" Insufficient balance to buy {p_item_object.name}", category='danger')
-
-        return redirect(url_for('market_page', category=category))
-
-    # Fetch items with seller details
-    if category == "All":
-        items = Item.query.filter(Item.seller_id.isnot(None)).all()
-    else:
-        items = Item.query.filter(Item.seller_id.isnot(None), Item.category == category).all()
-
-    seller_ids = list({item.seller_id for item in items})  # Unique seller IDs
-    sellers = {seller.id: seller for seller in User.query.filter(User.id.in_(seller_ids)).all()}
+    categories = ['All', 'Fashion', 'Electronics', 'Sports', 'Tools']
 
     return render_template(
         'market.html',
         items=items,
-        purchase_form=purchase_form,
         selected_category=category,
-        sellers=sellers 
+        categories=categories,
+        query=query
     )
-
-
 
 
 @app.route('/register', methods=['GET', 'POST'])
@@ -181,10 +147,10 @@ def register():
         )
         db.session.add(user_to_create)
         db.session.commit()
-        return redirect(url_for('market_page', category='All'))  
-    if form.errors != {}:
-        for err_msg in form.errors.values():
-            flash(f'There was an error with creating a user: {err_msg}', category='danger')
+        login_user(user_to_create)
+        flash(f'Welcome to Bidhaa Market, {user_to_create.username}! Your account can buy and sell.', category='success')
+        return redirect(url_for('market_page', category='All'))
+    # Field errors are shown next to each field on the form
     return render_template('register.html', form=form)
 
 
@@ -241,33 +207,27 @@ def reset_password(token):
 
 @app.route('/search_items', methods=['GET'])
 def search_items():
-    query = request.args.get('query', '')
-    items = Item.query.filter(Item.name.ilike(f"%{query}%")).all()
-    purchase_form = PurchaseForm()
-    return render_template('market.html', items=items, query=query, purchase_form=purchase_form)
-
-
-@app.route('/wallet', methods=['GET', 'POST'])
-@login_required
-def wallet_page():
-    if request.method == 'POST':
-        amount = request.form.get('amount', type=float)
-        if amount and amount > 0:
-            current_user.wallet_balance += amount
-            db.session.commit()
-            flash("Wallet topped up successfully!", "success")
-        else:
-            flash("Invalid amount!", "danger")
-
-    return render_template('wallet.html', wallet_balance=current_user.wallet_balance)
-
-
+    # Search lives on the market page now
+    return redirect(url_for('market_page', category='All', q=request.args.get('query', '')))
 
 
 @app.route('/customer_dashboard')
 @login_required
 def customer_dashboard():
-    return render_template('customer_dashboard.html', user=current_user)
+    orders = Order.query.filter_by(user_id=current_user.id).order_by(Order.order_date.desc()).all()
+    delivered = [o for o in orders if o.shipping_status == 'Delivered']
+    on_the_way = [o for o in orders if o.shipping_status != 'Delivered']
+
+    stats = {
+        'bought': len(delivered),
+        'on_the_way': len(on_the_way),
+        'total_spent': sum(o.total_price for o in delivered),
+        'to_pay': sum(o.total_price for o in on_the_way),
+        # Every account can also sell
+        'selling': Item.query.filter_by(seller_id=current_user.id, sold=False).count(),
+    }
+
+    return render_template('customer_dashboard.html', orders=orders, stats=stats)
 
 
 from sqlalchemy.orm import joinedload
@@ -362,8 +322,6 @@ def delete_item(item_id):
     return redirect(url_for('seller_dashboard'))
 
 
-
-
 @app.route('/add_item', methods=['GET', 'POST'])
 @login_required
 def add_item():
@@ -389,7 +347,8 @@ def add_item():
             description=form.description.data,
             barcode=barcode,  
             image=filename,
-            seller_id=current_user.id  
+            seller_id=current_user.id,
+            verified=True  # New items go live straight away; admins can hide them later
         )
 
         try:
@@ -416,21 +375,18 @@ def add_item():
 @app.route('/seller_listed_items')
 @login_required
 def seller_listed_items():
-    if not hasattr(current_user, 'is_seller') or not current_user.is_seller:
-        flash("Unauthorized access!", "danger")
-        return redirect(url_for('market'))
+    # The listed items live on the seller dashboard
+    return redirect(url_for('seller_dashboard', _anchor='listed-items'))
 
-    items = Item.query.filter_by(seller_id=current_user.id).all()
-    return render_template('seller_dashboard.html', items=items)
-
-@app.route('/purchase/<int:item_id>', methods=['POST'])
+@app.route('/purchase/<int:item_id>', methods=['GET', 'POST'])
 @login_required
 def purchase_item(item_id):
+    """Checkout: the buyer fills in where to deliver (and pins it on a map), then pays on delivery."""
     item = Item.query.get_or_404(item_id)
 
-    # Ensure the item is verified before purchase
+    # Items hidden by an admin can't be bought
     if not item.verified:
-        flash("This item has not been verified and cannot be purchased.", "danger")
+        flash("This item is not available right now.", "danger")
         return redirect(url_for('market_page'))
 
     # Ensure the seller exists
@@ -444,31 +400,43 @@ def purchase_item(item_id):
         flash("This item has already been sold.", "danger")
         return redirect(url_for('market_page'))
 
-    # Ensure buyer has enough balance
-    buyer_wallet = Wallet.query.filter_by(user_id=current_user.id).first()
-    if not buyer_wallet:
-        # If buyer doesn't have a wallet, create one
-        buyer_wallet = Wallet(user_id=current_user.id, balance=0)
-        db.session.add(buyer_wallet)
-
-    if buyer_wallet.balance < item.price:
-        flash("Insufficient funds!", "danger")
+    if item.seller_id == current_user.id:
+        flash("You cannot buy your own item.", "danger")
         return redirect(url_for('market_page'))
 
-    # Deduct money from buyer's wallet
-    buyer_wallet.balance -= item.price
+    # Prefill the form from the buyer's last order so repeat buyers don't retype their address
+    last_order = Order.query.filter_by(user_id=current_user.id).order_by(Order.order_date.desc()).first()
+    delivery = {
+        'town': last_order.shipping_town if last_order else '',
+        'apartment': last_order.shipping_apartment if last_order else '',
+        'phone': (last_order.shipping_phone if last_order else None) or current_user.phone or '',
+        'notes': '',
+        'lat': last_order.delivery_lat if last_order else None,
+        'lng': last_order.delivery_lng if last_order else None,
+    }
 
-    # Ensure the seller has a wallet
-    seller_wallet = Wallet.query.filter_by(user_id=seller.id).first()
-    if not seller_wallet:
-        # If seller doesn't have a wallet, create one
-        seller_wallet = Wallet(user_id=seller.id, balance=0)
-        db.session.add(seller_wallet)
+    if request.method == 'GET':
+        return render_template('checkout.html', item=item, delivery=delivery)
 
-    # Add money to seller's wallet
-    seller_wallet.balance += item.price
+    delivery = {
+        'town': request.form.get('town', '').strip(),
+        'apartment': request.form.get('apartment', '').strip(),
+        'phone': request.form.get('phone', '').strip(),
+        'notes': request.form.get('notes', '').strip()[:255],
+        'lat': request.form.get('lat', type=float),
+        'lng': request.form.get('lng', type=float),
+    }
 
-    # Mark the item as sold
+    if not delivery['town'] or not delivery['apartment'] or not delivery['phone']:
+        flash("Please fill in your town, apartment/building and phone number.", "danger")
+        return render_template('checkout.html', item=item, delivery=delivery)
+
+    if (delivery['lat'] is None or delivery['lng'] is None
+            or not -90 <= delivery['lat'] <= 90 or not -180 <= delivery['lng'] <= 180):
+        flash("Please pin your delivery location on the map.", "danger")
+        return render_template('checkout.html', item=item, delivery=delivery)
+
+    # Payment is made on delivery, so no money moves here - just reserve the item
     item.sold = True
 
     # Create a new order
@@ -477,57 +445,34 @@ def purchase_item(item_id):
         seller_id=seller.id,      # Seller
         item_id=item.id,
         total_price=item.price,
-        shipping_status="Pending"  # Initial status
+        shipping_status="Processing",  # Delivery details are known, seller can start shipping
+        shipping_town=delivery['town'],
+        shipping_apartment=delivery['apartment'],
+        shipping_phone=delivery['phone'],
+        delivery_notes=delivery['notes'] or None,
+        delivery_lat=delivery['lat'],
+        delivery_lng=delivery['lng']
     )
     db.session.add(new_order)
 
-    # Create a new owned item record
+    # We need to flush the session to get the order ID
+    db.session.flush()
+
     owned_item = OwnedItem(
         owner_id=current_user.id,
         item_id=item.id,
-        order_id=new_order.id  # This will be assigned after session.flush()
+        order_id=new_order.id
     )
-    
-    # We need to flush the session to get the order ID
-    db.session.flush()
-    
-    # Now assign the order ID to the owned item
-    owned_item.order_id = new_order.id
     db.session.add(owned_item)
 
-    # Create a sale record
-    sale = Sale(
-        seller_id=seller.id,
-        item_id=item.id,
-        amount=item.price
-    )
-    db.session.add(sale)
-
-    # Record the transaction
-    transaction = Transaction(
-        buyer_id=current_user.id,
-        seller_id=seller.id,
-        item_id=item.id,
-        amount=item.price,
-        status='Completed'
-    )
-    db.session.add(transaction)
+    notification_message = f"A buyer has ordered your item: {item.name}. Payment is on delivery. Please process shipping."
+    db.session.add(Notification(seller_id=seller.id, message=notification_message))
 
     db.session.commit()
-    flash(f"Congratulations! You purchased {item.name}.", "success")
 
-    notification_message = f"A buyer has purchased your item: {item.name}. Please process shipping."
-    new_notification = Notification(seller_id=seller.id, message=notification_message)
-    
-    db.session.add(new_notification)
-    db.session.commit()
-
-    flash('Item purchased successfully! The seller has been notified.', 'success')
+    flash(f"Order placed for {item.name}! You will pay Ksh {item.price} on delivery.", "success")
 
     return redirect(url_for('customer_orders'))
-
-
-
 
 
 @app.route('/order/<int:order_id>')
@@ -553,232 +498,20 @@ def cancel_order(order_id):
         flash("You are not authorized to cancel this order!", "danger")
         return redirect(url_for('customer_orders'))
 
-    wallet = Wallet.query.filter_by(user_id=current_user.id).first()
-    if wallet:
-        wallet.balance += order.item.price  
-        db.session.commit()
+    if order.shipping_status in ('Shipped', 'Delivered'):
+        flash("This order has already been shipped and can no longer be canceled.", "warning")
+        return redirect(url_for('customer_orders'))
 
+    # Nothing was paid yet (payment is on delivery), so just release the item back to the market
+    order.item.sold = False
+    OwnedItem.query.filter_by(order_id=order.id).delete()
     db.session.delete(order)
     db.session.commit()
 
-    flash("Order canceled and refunded successfully!", "success")
+    flash("Order canceled successfully!", "success")
     return redirect(url_for('customer_orders'))
 
 
-
-@app.route('/checkout', methods=['POST'])
-@login_required
-def checkout():
-    item = Item.query.get(request.form.get('item_id'))
-    if item and current_user.wallet_balance >= item.price:
-        current_user.wallet_balance -= item.price  
-        order = Order(
-            buyer_id=current_user.id,
-            seller_id=item.seller_id,  
-            item_id=item.id,
-            price=item.price
-        )
-        db.session.add(order)
-        db.session.commit()
-        flash("Purchase successful!", "success")
-        return redirect(url_for('customer_orders'))
-    flash("Insufficient funds or item not found.", "danger")
-    return redirect(url_for('marketplace'))
-
-
-@app.route('/submit_shipping_all', methods=['POST'])
-@login_required
-def submit_shipping_all():
-    form_data = request.form
-
-    shipping_town = form_data.get('global_town', '').strip()
-    shipping_apartment = form_data.get('global_apartment', '').strip()
-    shipping_phone = form_data.get('global_phone', '').strip()
-
-    if not shipping_town or not shipping_apartment or not shipping_phone:
-        flash('Please fill in all shipping details.', 'danger')
-        return redirect(url_for('customer_orders'))
-
-    orders = Order.query.filter_by(user_id=current_user.id).all()
-    for order in orders:
-        order.shipping_town = shipping_town
-        order.shipping_apartment = shipping_apartment
-        order.shipping_phone = shipping_phone
-        order.shipping_status = "Processing" 
-
-    db.session.commit()  
-
-    flash('Shipping information updated successfully!', 'success')
-    return redirect(url_for('customer_orders'))
-
-
-
-
- 
-@app.route('/become_seller', methods=['POST'])
-@login_required
-def become_seller():
-    existing_seller = Seller.query.filter_by(user_id=current_user.id).first()
-    
-    if existing_seller:
-        flash(" You are already a seller!", "danger")
-        return redirect(url_for('market_page'))
-
-    store_name = request.form.get('store_name')
-    if not store_name:
-        flash("Store name is required!", "danger")
-        return redirect(url_for('market_page'))
-
-    seller = Seller(user_id=current_user.id, store_name=store_name)
-    db.session.add(seller)
-    db.session.commit()
-
-    flash(f"🎉 You are now a seller with the store '{store_name}'!", "success")
-    return redirect(url_for('seller_dashboard'))
-
-@app.route('/withdraw', methods=['POST'])
-@login_required
-def withdraw():
-    amount = float(request.form.get('withdraw_amount'))
-    mpesa_number = request.form.get('mpesa_number')
-    
-    wallet = Wallet.query.filter_by(user_id=current_user.id).first()
-    
-    if wallet and wallet.balance >= amount:
-        wallet.balance -= amount  # Deduct from wallet
-
-        # Log withdrawal as a transaction
-        withdrawal = Transaction(
-            seller_id=current_user.id,
-            amount=amount,
-            type="withdrawal",
-            mpesa_number=mpesa_number  
-        )
-        db.session.add(withdrawal)
-        db.session.commit()
-
-        flash(f'Withdrawal of KES {amount} successful! Money sent to {mpesa_number}.', 'success')
-    else:
-        flash('Insufficient balance!', 'danger')
-
-    return redirect(url_for('seller_dashboard'))
-
-
-
-@app.route('/deposit', methods=['POST'])
-@login_required
-def deposit():
-    data = request.get_json()
-    phone = data.get('phone')
-    amount = data.get('amount')
-
-    if not phone or not amount:
-        return jsonify({'error': 'Phone and amount are required'}), 400
-
-    response = {"message": "STK Push sent successfully"}
-
-    current_user.wallet.balance += amount
-    db.session.commit()
-
-    return jsonify(response)
-
-@app.route('/transactions')
-@login_required
-def transactions():
-    user_transactions = Transaction.query.filter(
-        (Transaction.buyer_id == current_user.id) | (Transaction.seller_id == current_user.id)
-    ).order_by(Transaction.date.desc()).all()
-
-    return render_template('transactions.html', transactions=user_transactions)
-
-
-    
-@app.route('/top_up', methods=['POST'])
-@login_required
-def top_up():
-    amount = request.form.get('amount')
-
-    if not amount:
-        flash("Amount is required!", "danger")
-        return redirect(url_for('wallet_page'))
-
-    try:
-        amount = float(amount)
-        if amount <= 0:
-            flash("Invalid amount!", "danger")
-            return redirect(url_for('wallet_page'))
-
-        wallet = Wallet.query.filter_by(user_id=current_user.id).first()
-        if not wallet:
-            wallet = Wallet(user_id=current_user.id, balance=0)
-            db.session.add(wallet)
-            db.session.commit()
-
-        wallet.deposit(amount)
-        flash(f"Wallet topped up with KES {amount}!", "success")
-    except ValueError:
-        flash("Invalid input!", "danger")
-
-    return redirect(url_for('wallet_page'))
-
-
-
-@app.route('/verify_payment', methods=['POST'])
-def verify_payment():
-    phone = request.form.get('phone')
-    transaction_code = request.form.get('transaction_code')
-    amount = request.form.get('amount')
-
-    print("Received Data:", phone, transaction_code, amount) 
-
-    if not phone or not transaction_code or not amount:
-        return jsonify({'error': 'Missing fields'}), 400
-
-    phone = phone.replace(" ", "").replace("-", "")
-
-    if phone.startswith("254"):  
-        short_phone = phone[-9:]  
-    elif phone.startswith("07"):
-        short_phone = phone[1:]  
-    else:
-        short_phone = phone
-
-    print(f"Searching for: {phone} OR {short_phone}")  
-
-    user = User.query.filter(
-        (User.phone == phone) | (User.phone == short_phone)
-    ).first()
-
-    if user:
-        print(f"User found: {user.username} with phone {user.phone}")  
-    else:
-        print("User not found in database.") 
-        return jsonify({'error': 'User not found'}), 404
-
-    if not user.wallet:
-        print(f"Creating wallet for {user.username}")
-        user.wallet = Wallet(user_id=user.id, balance=0.0)  
-        db.session.add(user.wallet)
-        db.session.commit()
-
-    user.wallet.balance += float(amount)
-    db.session.commit()
-
-    return jsonify({'message': 'Payment verified and wallet updated'})
-
-
-
-    
-@app.route('/mpesa/callback', methods=['POST'])
-def mpesa_callback():
-    data = request.get_json()
-
-    if data.get("ResponseCode") == "0":
-        print("Payment successful!")
-    else:
-        print(f"Payment failed: {data.get('ResponseDescription')}")
-    
-    return jsonify({"status": "success"}), 200
 
 @app.route('/edit_profile', methods=['GET', 'POST'])
 @login_required
@@ -801,7 +534,7 @@ def admin_login():
         password = request.form.get('password')
         user = User.query.filter_by(email=email).first()
 
-        if user and check_password_hash(user.password, password) and user.is_admin:
+        if user and user.check_password(password) and user.is_admin:
             login_user(user)
             flash("✅ Admin logged in successfully!", category="success")
             return redirect(url_for('admin_dashboard'))
@@ -819,103 +552,234 @@ def admin_dashboard():
         return redirect(url_for('market_page'))
     
     users = User.query.all()
-    sellers = User.query.filter_by(is_seller=True).all()
+    sellers = User.query.filter(User.role.in_(['seller', 'both'])).all()
     items = Item.query.all()
-    transactions = Transaction.query.all()
+    hidden_items = Item.query.filter_by(verified=False, sold=False).count()
+    # Newest listings, so the admin can spot and hide anything inappropriate
+    latest_items = Item.query.filter_by(sold=False).order_by(Item.id.desc()).limit(8).all()
 
-    return render_template('admin_dashboard.html', users=users, sellers=sellers, items=items, transactions=transactions)
+    orders = Order.query.order_by(Order.order_date.desc()).all()
+    order_stats = {
+        'total': len(orders),
+        'in_progress': sum(1 for o in orders if o.shipping_status != 'Delivered'),
+        'delivered': sum(1 for o in orders if o.shipping_status == 'Delivered'),
+        'delivered_value': sum(o.total_price for o in orders if o.shipping_status == 'Delivered'),
+    }
 
-@app.route('/admin/profile')
-@login_required
-def admin_profile():
-    return render_template('admin_profile.html')
+    # Top sellers by value of delivered (paid) orders
+    top_sellers = (
+        db.session.query(User.username, db.func.count(Order.id), db.func.sum(Order.total_price))
+        .join(Order, Order.seller_id == User.id)
+        .filter(Order.shipping_status == 'Delivered')
+        .group_by(User.username)
+        .order_by(db.func.sum(Order.total_price).desc())
+        .limit(5)
+        .all()
+    )
+    new_users = User.query.order_by(User.id.desc()).limit(5).all()
 
-
-@app.route('/admin/settings')
-@login_required
-def admin_settings():
-    return render_template('admin_settings.html')
-
-
+    return render_template('admin_dashboard.html', users=users, sellers=sellers, items=items,
+                           hidden_items=hidden_items, latest_items=latest_items, recent_orders=orders[:8], order_stats=order_stats,
+                           top_sellers=top_sellers, new_users=new_users)
 
 @app.route('/admin/users')
 @login_required
 @admin_required
 def manage_users():
-    users = User.query.all()
-    return render_template('admin_users.html', users=users)
+    q = request.args.get('q', '').strip()
+    query = User.query
+    if q:
+        query = query.filter(User.username.ilike(f"%{q}%") | User.email.ilike(f"%{q}%") | User.phone.ilike(f"%{q}%"))
+    users = query.order_by(User.id.desc()).all()
+
+    # Per-user activity so the admin can see who buys and who sells
+    items_listed = dict(db.session.query(Item.seller_id, db.func.count(Item.id)).group_by(Item.seller_id).all())
+    orders_placed = dict(db.session.query(Order.user_id, db.func.count(Order.id)).group_by(Order.user_id).all())
+    orders_received = dict(db.session.query(Order.seller_id, db.func.count(Order.id)).group_by(Order.seller_id).all())
+
+    return render_template('admin_users.html', users=users, q=q, items_listed=items_listed,
+                           orders_placed=orders_placed, orders_received=orders_received)
+
+
+@app.route('/admin/users/<int:user_id>/toggle_admin', methods=['POST'])
+@login_required
+@admin_required
+def toggle_admin(user_id):
+    user = User.query.get_or_404(user_id)
+    if user.id == current_user.id:
+        flash("You can't remove your own admin access.", "warning")
+    else:
+        user.is_admin = not user.is_admin
+        db.session.commit()
+        flash(f"{user.username} is {'now an admin' if user.is_admin else 'no longer an admin'}.", "success")
+    return redirect(request.referrer or url_for('manage_users'))
+
+
+@app.route('/admin/users/<int:user_id>/delete', methods=['POST'])
+@login_required
+@admin_required
+def delete_user(user_id):
+    user = User.query.get_or_404(user_id)
+
+    if user.id == current_user.id:
+        flash("You can't delete your own account.", "warning")
+        return redirect(url_for('manage_users'))
+
+    # Keep order history intact: users who have bought or sold can't be deleted
+    has_orders = Order.query.filter((Order.user_id == user.id) | (Order.seller_id == user.id)).first()
+    if has_orders:
+        flash(f"{user.username} has orders on record and can't be deleted.", "warning")
+        return redirect(url_for('manage_users'))
+
+    for item in Item.query.filter_by(seller_id=user.id).all():
+        Sale.query.filter_by(item_id=item.id).delete()
+        db.session.delete(item)
+    Notification.query.filter_by(seller_id=user.id).delete()
+    Wallet.query.filter_by(user_id=user.id).delete()
+    db.session.delete(user)
+    db.session.commit()
+    flash(f"User {user.username} deleted.", "success")
+    return redirect(url_for('manage_users'))
 
 
 @app.route('/admin/items')
 @login_required
 @admin_required
 def manage_items():
-    items = Item.query.all()
-    return render_template('admin_items.html', items=items)
+    status = request.args.get('status', 'All')
+    q = request.args.get('q', '').strip()
+    query = Item.query
+    if status == 'Hidden':
+        query = query.filter(Item.verified.is_(False), Item.sold.is_(False))
+    elif status == 'Live':
+        query = query.filter(Item.verified.is_(True), Item.sold.is_(False))
+    elif status == 'Sold':
+        query = query.filter(Item.sold.is_(True))
+    if q:
+        query = query.filter(Item.name.ilike(f"%{q}%"))
+    items = query.order_by(Item.id.desc()).all()
+    return render_template('admin_items.html', items=items, status=status, q=q)
 
-@app.route('/admin/transactions')
+
+@app.route('/admin/items/<int:item_id>/unverify', methods=['POST'])
 @login_required
 @admin_required
-def manage_transactions():
-    transactions = Transaction.query.all()
-    return render_template('admin_transactions.html', transactions=transactions)
-
-@app.route('/manage_sellers')
-def manage_sellers():
-    sellers = User.query.filter_by(role='seller').all()  # Adjust according to your model
-    return render_template('manage_sellers.html', sellers=sellers)
-
-
-@app.route('/admin/delete_user/<int:user_id>')
-@login_required
-def delete_user(user_id):
-    user = User.query.get(user_id)
-    if not user:
-        flash('User not found', 'danger')
-        return redirect(url_for('admin_dashboard'))
-
-    Item.query.filter_by(seller_id=user.id).delete()
-
-    db.session.delete(user)
+def unverify_item(item_id):
+    """Hide an item from the market (e.g. after a complaint). It can be shown again later."""
+    item = Item.query.get_or_404(item_id)
+    item.verified = False
+    db.session.add(Notification(seller_id=item.seller_id,
+                                message=f"Your item '{item.name}' was hidden from the market by an admin. Contact support if you think this is a mistake."))
     db.session.commit()
-    flash('User deleted successfully', 'success')
-    return redirect(url_for('admin_dashboard'))
+    flash(f"'{item.name}' is now hidden from the market.", "info")
+    return redirect(request.referrer or url_for('manage_items'))
+
+
+@app.route('/admin/orders')
+@login_required
+@admin_required
+def manage_orders():
+    # Buyers pay on delivery, so orders (not transactions) are the record of what was bought
+    status = request.args.get('status', 'All')
+    q = request.args.get('q', '').strip()
+    query = Order.query
+    if status == 'In progress':
+        query = query.filter(Order.shipping_status != 'Delivered')
+    elif status == 'Delivered':
+        query = query.filter(Order.shipping_status == 'Delivered')
+    orders = query.order_by(Order.order_date.desc()).all()
+    if q:
+        ql = q.lower()
+        orders = [o for o in orders if ql in o.item.name.lower() or ql in o.user.username.lower()
+                  or ql in o.seller.username.lower() or ql in (o.shipping_town or '').lower()]
+    return render_template('admin_orders.html', orders=orders, status=status, q=q)
+
+
+@app.route('/admin/orders/<int:order_id>/cancel', methods=['POST'])
+@login_required
+@admin_required
+def admin_cancel_order(order_id):
+    order = Order.query.get_or_404(order_id)
+    if order.shipping_status == 'Delivered':
+        flash("Delivered orders can't be cancelled.", "warning")
+        return redirect(request.referrer or url_for('manage_orders'))
+
+    # Nothing has been paid yet, so cancelling just puts the item back on the market
+    order.item.sold = False
+    db.session.add(Notification(seller_id=order.seller_id,
+                                message=f"The order for '{order.item.name}' was cancelled by an admin. The item is back on the market."))
+    OwnedItem.query.filter_by(order_id=order.id).delete()
+    db.session.delete(order)
+    db.session.commit()
+    flash("Order cancelled and the item is back on the market.", "success")
+    return redirect(request.referrer or url_for('manage_orders'))
+
+
+@app.route('/admin/export/<string:dataset>.csv')
+@login_required
+@admin_required
+def admin_export(dataset):
+    """Download users, items or orders as a CSV file (opens in Excel / Google Sheets)."""
+    def fmt_date(d):
+        return d.strftime('%Y-%m-%d %H:%M') if d else ''
+
+    if dataset == 'users':
+        header = ['ID', 'Username', 'Email', 'Phone', 'Admin', 'Joined', 'Items listed', 'Orders placed', 'Orders received']
+        items_listed = dict(db.session.query(Item.seller_id, db.func.count(Item.id)).group_by(Item.seller_id).all())
+        orders_placed = dict(db.session.query(Order.user_id, db.func.count(Order.id)).group_by(Order.user_id).all())
+        orders_received = dict(db.session.query(Order.seller_id, db.func.count(Order.id)).group_by(Order.seller_id).all())
+        rows = [[u.id, u.username, u.email, u.phone or '', 'Yes' if u.is_admin else 'No', fmt_date(u.created_at),
+                 items_listed.get(u.id, 0), orders_placed.get(u.id, 0), orders_received.get(u.id, 0)]
+                for u in User.query.order_by(User.id).all()]
+    elif dataset == 'items':
+        header = ['ID', 'Name', 'Category', 'Price (Ksh)', 'Status', 'Seller', 'Barcode', 'Description']
+        rows = [[i.id, i.name, i.category, i.price,
+                 'Sold' if i.sold else ('Live' if i.verified else 'Hidden'),
+                 i.seller.username if i.seller else '', i.barcode, i.description]
+                for i in Item.query.order_by(Item.id).all()]
+    elif dataset == 'orders':
+        header = ['ID', 'Date', 'Item', 'Buyer', 'Seller', 'Amount (Ksh)', 'Status', 'Paid', 'Town',
+                  'Apartment/Building', 'Phone', 'Directions', 'Latitude', 'Longitude']
+        rows = [[o.id, fmt_date(o.order_date), o.item.name, o.user.username, o.seller.username, o.total_price,
+                 o.shipping_status, 'Yes (on delivery)' if o.shipping_status == 'Delivered' else 'No',
+                 o.shipping_town or '', o.shipping_apartment or '', o.shipping_phone or '', o.delivery_notes or '',
+                 o.delivery_lat if o.delivery_lat is not None else '', o.delivery_lng if o.delivery_lng is not None else '']
+                for o in Order.query.order_by(Order.order_date.desc()).all()]
+    else:
+        abort(404)
+
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(header)
+    writer.writerows(rows)
+
+    filename = f"bidhaa_{dataset}_{datetime.now().strftime('%Y-%m-%d')}.csv"
+    # The BOM makes Excel open the file as UTF-8
+    return Response('﻿' + buffer.getvalue(), mimetype='text/csv',
+                    headers={'Content-Disposition': f'attachment; filename={filename}'})
 
 
 @app.route('/admin_delete_item/<int:item_id>', methods=['POST'])
 @login_required
+@admin_required
 def admin_delete_item(item_id):
     item = Item.query.get(item_id)
 
     if not item:
         flash("Item not found!", "danger")
-        return redirect(url_for('manage_items'))  
+        return redirect(url_for('manage_items'))
 
-   
     orders_with_item = db.session.query(Order.query.filter_by(item_id=item_id).exists()).scalar()
     if orders_with_item:
         flash("Cannot delete item as it has been ordered!", "warning")
         return redirect(url_for('manage_items'))
 
+    Sale.query.filter_by(item_id=item_id).delete()
     db.session.delete(item)
     db.session.commit()
     flash("Item deleted successfully!", "success")
 
-    return redirect(url_for('manage_items'))  
-
-
-
-
-@app.route('/receipt/<int:transaction_id>')
-@login_required
-def receipt(transaction_id):
-    transaction = Transaction.query.get_or_404(transaction_id)
-    if transaction.buyer_id != current_user.id and transaction.seller_id != current_user.id:
-        flash("You don't have permission to view this receipt.", "danger")
-        return redirect(url_for('index'))
-
-    return render_template('receipt.html', transaction=transaction)
-
+    return redirect(request.referrer or url_for('manage_items'))
 
 
 @app.route('/order/<int:order_id>/start_shipping', methods=['POST'])
@@ -935,20 +799,34 @@ def start_shipping(order_id):
 
 
 @app.route('/mark_order_as_shipping/<int:order_id>', methods=['POST'])
+@login_required
 def mark_order_as_shipping(order_id):
     order = Order.query.get(order_id)
-    if order:
+    if order and order.seller_id == current_user.id:
         order.shipping_status = 'Shipping in Process'
         db.session.commit()
     return redirect(url_for('seller_orders'))
 
 
 @app.route('/mark_order_as_shipped/<int:order_id>', methods=['POST'])
+@login_required
 def mark_order_as_shipped(order_id):
     order = Order.query.get(order_id)
-    if order:
+    if order and order.seller_id == current_user.id:
         order.shipping_status = 'Shipped'
         db.session.commit()
+    return redirect(url_for('seller_orders'))
+
+
+@app.route('/mark_order_as_delivered/<int:order_id>', methods=['POST'])
+@login_required
+def mark_order_as_delivered(order_id):
+    """Seller confirms the item was delivered and the buyer paid on delivery."""
+    order = Order.query.get(order_id)
+    if order and order.seller_id == current_user.id and order.shipping_status == 'Shipped':
+        order.shipping_status = 'Delivered'
+        db.session.commit()
+        flash(f"Order for {order.item.name} marked as delivered and paid.", "success")
     return redirect(url_for('seller_orders'))
 
 
@@ -956,14 +834,15 @@ def mark_order_as_shipped(order_id):
 @login_required
 def delete_order(order_id):
     order = Order.query.get(order_id)
-    
-    if order and order.customer_id == current_user.id:
-        if order.shipping_status == "Shipped":
+
+    if order and order.user_id == current_user.id:
+        if order.shipping_status == "Delivered":
+            OwnedItem.query.filter_by(order_id=order.id).delete()
             db.session.delete(order)
             db.session.commit()
             flash("Order deleted successfully!", "success")
         else:
-            flash("You can only delete shipped orders.", "warning")
+            flash("You can only delete delivered orders.", "warning")
     else:
         flash("Order not found or unauthorized action.", "danger")
 
@@ -977,90 +856,22 @@ def delete_order(order_id):
 def verify_item(item_id):
     item = Item.query.get_or_404(item_id)
 
+    # "Verify" now means "show on the market again" after an admin hid the item
     if item.verified:
-        flash("Item is already verified!", "info")
+        flash("Item is already on the market.", "info")
     else:
         item.verified = True
+        db.session.add(Notification(seller_id=item.seller_id,
+                                    message=f"Good news! Your item '{item.name}' is back on the market."))
         db.session.commit()
-        flash(f"Item '{item.name}' has been verified!", "success")
+        flash(f"'{item.name}' is back on the market.", "success")
 
     return redirect(request.referrer or url_for('admin_dashboard')) 
 
 
-
-
-@app.route('/admin/setting', methods=['GET', 'POST'])
-@login_required
-def admin_setting():
-    form = AdminSettingsForm()
-    if form.validate_on_submit():
-        
-        settings.site_name = form.site_name.data
-        settings.site_email = form.site_email.data
-        settings.site_phone = form.site_phone.data
-        settings.max_users = form.max_users.data
-        settings.enable_registration = form.enable_registration.data
-        settings.transaction_fee = form.transaction_fee.data
-        settings.payment_gateway = form.payment_gateway.data
-        settings.theme_color = form.theme_color.data
-# Commit to DB
-        flash('Settings saved successfully', 'success')
-        return redirect(url_for('admin_setting'))
-    return render_template('admin_setting.html', form=form)
-
-
-@app.route('/generate_receipt/<int:receipt_id>')
-def generate_receipt(receipt_id):
-    transaction = get_transaction_by_id(receipt_id)  
-    
-    if not transaction:
-        return "Transaction not found", 404
-    
-    rendered_html = render_template('receipt.html', transaction=transaction)
-
-    path_to_wkhtmltopdf = r"C:\Program Files (x86)\wkhtmltopdf\bin\wkhtmltopdf.exe"  
-    config = pdfkit.configuration(wkhtmltopdf=path_to_wkhtmltopdf)
-
-    options = {
-        'no-images': '',
-        'enable-local-file-access': '',  
-    }
-
-    try:
-        pdf = pdfkit.from_string(rendered_html, False, configuration=config, options=options)
-        
-        return Response(
-            pdf, 
-            content_type='application/pdf', 
-            headers={'Content-Disposition': 'attachment;filename=receipt.pdf'}
-        )
-    except Exception as e:
-        return f"An error occurred: {e}"
-
-
-
-
-@app.route('/download_receipt/<int:transaction_id>')
-@login_required
-def download_receipt(transaction_id):
-    transaction = Transaction.query.get_or_404(transaction_id)
-
-    if transaction.buyer_id != current_user.id and transaction.seller_id != current_user.id:
-        flash("You don't have permission to download this receipt.", "danger")
-        return redirect(url_for('index'))
-
-    rendered = render_template('receipt.html', transaction=transaction)
-
-    pdf = weasyprint.HTML(string=rendered).write_pdf()
-
-    response = make_response(pdf)
-    response.headers['Content-Type'] = 'application/pdf'
-    response.headers['Content-Disposition'] = f'attachment; filename=receipt_{transaction.id}.pdf'
-
-    return response
-
 @app.route('/generate_report', methods=['GET'])
 @login_required
+@admin_required
 def generate_report():
     start_date = request.args.get('start_date')
     end_date = request.args.get('end_date')
@@ -1069,29 +880,30 @@ def generate_report():
     users = User.query.all()
     items = Item.query.all()
     
-    query = Transaction.query
+    # Buyers pay on delivery, so the report is built from orders rather than transactions
+    query = Order.query
     if start_date and end_date:
-        query = query.filter(Transaction.date >= start_date, Transaction.date <= end_date)
+        query = query.filter(Order.order_date >= start_date, Order.order_date <= end_date)
     
-    transactions = query.all()
+    orders = query.order_by(Order.order_date.desc()).all()
     
-    total_sales = sum(t.amount for t in transactions)
-    num_transactions = len(transactions)
+    total_sales = sum(o.total_price for o in orders if o.shipping_status == 'Delivered')
+    num_orders = len(orders)
 
     top_items = (
-        db.session.query(Item.name, db.func.count(Transaction.id))
-        .join(Transaction, Transaction.item_id == Item.id)
+        db.session.query(Item.name, db.func.count(Order.id))
+        .join(Order, Order.item_id == Item.id)
         .group_by(Item.name)
-        .order_by(db.func.count(Transaction.id).desc())
+        .order_by(db.func.count(Order.id).desc())
         .limit(5)
         .all()
     )
 
     top_buyers = (
-        db.session.query(User.username, db.func.count(Transaction.id))
-        .join(Transaction, Transaction.buyer_id == User.id)
+        db.session.query(User.username, db.func.count(Order.id))
+        .join(Order, Order.user_id == User.id)
         .group_by(User.username)
-        .order_by(db.func.count(Transaction.id).desc())
+        .order_by(db.func.count(Order.id).desc())
         .limit(5)
         .all()
     )
@@ -1100,9 +912,9 @@ def generate_report():
         'report.html', 
         users=users, 
         items=items, 
-        transactions=transactions, 
+        orders=orders, 
         total_sales=total_sales, 
-        num_transactions=num_transactions, 
+        num_orders=num_orders, 
         top_items=top_items, 
         top_buyers=top_buyers, 
         start_date=start_date, 
@@ -1117,7 +929,5 @@ def generate_report():
     response.headers['Content-Disposition'] = 'inline; filename=report.pdf'
     
     return response
-
-
 
 

@@ -1,0 +1,38 @@
+<style>
+    .auth-wrap { min-height: calc(100vh - 230px); display: flex; align-items: center; justify-content: center; padding: 1rem 0 2rem; }
+    .auth-card { max-width: 920px; width: 100%; overflow: hidden; border-radius: 18px; box-shadow: 0 20px 50px rgba(16, 24, 40, .12); background: #fff; }
+    .auth-side {
+        background: linear-gradient(150deg, var(--bm-navy) 0%, #24407a 55%, var(--bm-blue) 100%);
+        color: #fff; padding: 2.5rem 2rem; position: relative; overflow: hidden;
+    }
+    .auth-side::after {
+        content: ""; position: absolute; right: -60px; bottom: -60px; width: 200px; height: 200px; border-radius: 50%;
+        background: radial-gradient(circle, rgba(244, 123, 32, .55), rgba(244, 123, 32, 0) 70%);
+    }
+    .auth-side .logo { width: 88px; border-radius: 14px; background: #fff; padding: 4px; }
+    .auth-side h2 { font-weight: 700; }
+    .auth-side .perk { display: flex; gap: .75rem; align-items: flex-start; margin-bottom: 1rem; color: #dfe7f7; }
+    .auth-side .perk i, .auth-side .perk svg { color: var(--bm-orange); margin-top: .2rem; }
+    .auth-form { padding: 2.5rem 2.25rem; }
+    .auth-form h1 { font-size: 1.6rem; font-weight: 700; color: var(--bm-navy); }
+    .auth-form .form-label { font-weight: 500; font-size: .9rem; color: #3b4459; margin-bottom: .3rem; }
+    .auth-form .input-group-text { background: #f6f8fc; border-color: #dfe3ec; color: #7a8399; }
+    .auth-form .form-control { border-color: #dfe3ec; padding: .65rem .8rem; }
+    .auth-form .form-control:focus { border-color: var(--bm-blue); box-shadow: 0 0 0 .2rem rgba(31, 122, 224, .15); }
+    .auth-form .input-group:focus-within .input-group-text { border-color: var(--bm-blue); color: var(--bm-blue); }
+    .auth-form .btn-submit { padding: .7rem; font-weight: 600; border-radius: 10px; }
+    .auth-form .toggle-pw { border-color: #dfe3ec; color: #7a8399; background: #fff; }
+    .auth-form .invalid-feedback { display: block; }
+</style>
+<script>
+    // Show / hide password buttons
+    document.addEventListener('click', function (e) {
+        const btn = e.target.closest('.toggle-pw');
+        if (!btn) return;
+        const input = document.getElementById(btn.dataset.target);
+        const show = input.type === 'password';
+        input.type = show ? 'text' : 'password';
+        btn.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+        btn.querySelector('.label').textContent = show ? 'Hide' : 'Show';
+    });
+</script>

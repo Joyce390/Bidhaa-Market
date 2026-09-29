@@ -1,10 +1,3 @@
-<style>
-    .modal-content {
-        background-color: rgb(28, 28, 29);
-        color: white;
-    }
-</style>
-
 <!-- More Info Modal -->
 <div class="modal fade" id="Modal-MoreInfo-{{ item.id }}"
      tabindex="-1" aria-labelledby="ModalLabel-{{ item.id }}" aria-hidden="true">
@@ -15,39 +8,10 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <p><strong>Description:</strong> {{ item.description }}</p>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Purchase Confirmation Modal -->
-<div class="modal fade" id="Modal-PurchaseConfirm-{{ item.id }}"
-     tabindex="-1" aria-labelledby="ModalLabel-{{ item.id }}" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">{{ item.name }}</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <form method="POST" action="{{ url_for('purchase_item', item_id=item.id) }}">
-                    {{ purchase_form.hidden_tag() }}
-
-                    <h4 class="text-center">
-                        Are you sure you want to buy <strong>{{ item.name }} for Ksh.{{ item.price }}</strong>?
-                    </h4>
-                    <br>
-                    <h6 class="text-center">
-                        Click "Purchase" to confirm your order.
-                    </h6> 
-                    <br>
-                    <input type="hidden" name="purchased_item_id" value="{{ item.id }}">
-                    <button type="submit" class="btn btn-outline-success w-100">Purchase</button>
-                </form>
+                {% if item.image %}<img src="{{ url_for('static', filename='uploads/' + item.image) }}" class="img-fluid rounded mb-3 w-100" style="max-height: 280px; object-fit: cover;" alt="{{ item.name }}">{% endif %}
+                <p class="mb-2"><span class="badge bg-light text-dark border">{{ item.category }}</span> <strong class="ms-2">Ksh {{ '{:,.0f}'.format(item.price) }}</strong></p>
+                <p class="text-secondary">{{ item.description }}</p>
+                <p class="small mb-0"><i class="fas fa-hand-holding-usd text-warning me-1"></i> Pay on delivery, nothing is charged online.</p>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>

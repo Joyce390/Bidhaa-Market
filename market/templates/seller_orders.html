@@ -27,12 +27,19 @@
                         {% if order.shipping_status == 'Processing' %}bg-warning
                         {% elif order.shipping_status == 'Shipping in Process' %}bg-info
                         {% elif order.shipping_status == 'Shipped' %}bg-primary
-                        {% elif order.shipping_status == 'Paid' %}bg-success
+                        {% elif order.shipping_status == 'Delivered' %}bg-success
                         {% else %}bg-secondary{% endif %}">{{ order.shipping_status }}</span>
                 </td>
                 <td>
-                    <p>{{ order.shipping_town }}, {{ order.shipping_apartment }}</p>
-                    <p>{{ order.shipping_phone }}</p>
+                    <p class="mb-1">{{ order.shipping_apartment }}, {{ order.shipping_town }}</p>
+                    <p class="mb-1">📞 <a href="tel:{{ order.shipping_phone }}">{{ order.shipping_phone }}</a></p>
+                    {% if order.delivery_notes %}
+                    <p class="small mb-1">{{ order.delivery_notes }}</p>
+                    {% endif %}
+                    {% if order.delivery_lat is not none and order.delivery_lng is not none %}
+                    <a href="https://www.google.com/maps/dir/?api=1&destination={{ order.delivery_lat }},{{ order.delivery_lng }}"
+                       target="_blank" rel="noopener" class="btn btn-outline-primary btn-sm">📍 Open in Maps</a>
+                    {% endif %}
                 </td>
                 <td>
                     {% if order.shipping_status == 'Processing' %}
@@ -44,7 +51,12 @@
                         <button type="submit" class="btn btn-success btn-sm">✅ Mark as Shipped</button>
                     </form>
                     {% elif order.shipping_status == 'Shipped' %}
-                    <span class="text-muted">✅ Already Shipped</span>
+                    <form action="{{ url_for('mark_order_as_delivered', order_id=order.id) }}" method="POST"
+                          onsubmit="return confirm('Confirm the buyer received the item and paid Ksh {{ order.total_price }}?');">
+                        <button type="submit" class="btn btn-success btn-sm">💵 Mark as Delivered &amp; Paid</button>
+                    </form>
+                    {% elif order.shipping_status == 'Delivered' %}
+                    <span class="text-muted">✅ Delivered &amp; Paid</span>
                     {% endif %}
                 </td>
             </tr>
@@ -55,14 +67,5 @@
     <p>No orders yet.</p>
     {% endif %}
 </div>
-
-<!-- JavaScript to Auto-Refresh After Form Submission -->
-<script>
-    document.addEventListener("DOMContentLoaded", function() {
-        setTimeout(() => {
-            location.reload();
-        }, 500); // Refresh after 500ms to reflect changes
-    });
-</script>
 
 {% endblock %}

@@ -137,6 +137,9 @@ class Order(db.Model):
     shipping_town = db.Column(db.String(100))
     shipping_apartment = db.Column(db.String(100))
     shipping_phone = db.Column(db.String(15))
+    delivery_notes = db.Column(db.String(255))
+    delivery_lat = db.Column(db.Float)
+    delivery_lng = db.Column(db.Float)
 
     user = db.relationship('User', foreign_keys=[user_id], back_populates='orders') 
     seller = db.relationship('User', foreign_keys=[seller_id], back_populates='sold_orders') 

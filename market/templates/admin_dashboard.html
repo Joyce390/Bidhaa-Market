@@ -3,125 +3,194 @@
 {% block title %}Admin Dashboard{% endblock %}
 
 {% block content %}
-<div class="container">
-
-    <div class="row g-4">
-        <div class="col-lg-3 col-md-6">
-            <div class="card shadow-lg text-white bg-info">
-                <div class="card-body text-center">
-                    <h5><i class="fas fa-user"></i> Users</h5>
-                    <h3>{{ users|length }}</h3>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-lg-3 col-md-6">
-            <div class="card shadow-lg text-white bg-warning">
-                <div class="card-body text-center">
-                    <h5><i class="fas fa-box"></i> Items</h5>
-                    <h3>{{ items|length }}</h3>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-lg-3 col-md-6">
-            <div class="card shadow-lg text-white bg-danger">
-                <div class="card-body text-center">
-                    <h5><i class="fas fa-money-bill"></i> Transactions</h5>
-                    <h3>{{ transactions|length }}</h3>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="mt-5">
-        <h3>Unverified Items</h3>
-        <table class="table table-striped">
-            <thead>
-                <tr>
-                    <th>Item ID</th>
-                    <th>Name</th>
-                    <th>Seller</th>
-                    <th>Price</th>
-                    <th>Action</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for item in unverified_items %}
-                <tr>
-                    <td>{{ item.id }}</td>
-                    <td>{{ item.name }}</td>
-                    <td>{{ item.seller.username }}</td>
-                    <td>KES {{ item.price }}</td>
-                    <td>
-                        <form action="{{ url_for('verify_item', item_id=item.id) }}" method="POST" style="display:inline;">
-                            <button type="submit" class="btn btn-success">Verify</button>
-                        </form>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-
-    <div class="mt-5">
-        <h3>Transactions</h3>
-        <table class="table table-striped">
-            <thead>
-                <tr>
-                    <th>Transaction ID</th>
-                    <th>Buyer</th>
-                    <th>Seller</th>
-                    <th>Amount</th>
-                    <th>Action</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for transaction in transactions %}
-                <tr>
-                    <td>{{ transaction.id }}</td>
-                    <td>{{ transaction.buyer.username }}</td>
-                    <td>{{ transaction.seller.username }}</td>
-                    <td>KES {{ transaction.amount }}</td>
-                    <td>
-                        <a href="{{ url_for('generate_receipt', receipt_id=transaction.id) }}" class="btn btn-primary">Print Receipt</a>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-
-    <div class="mt-4 text-center">
-        <h3>Generate Full Report</h3>
-        <a href="{{ url_for('generate_report') }}" class="btn btn-success">📄 Download Full Report</a>
-    </div>
-
-</div>
-
 <style>
-.container {
-    max-width: 1200px;
-    margin: auto;
-    padding: 20px;
-}
-
-.card {
-    border-radius: 10px;
-    height: 150px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.table {
-    width: 100%;
-    margin-top: 20px;
-}
-
-.table th, .table td {
-    text-align: center;
-}
+    .stat-card { border: 0; border-left: 4px solid var(--accent); }
+    .stat-card .stat-value { font-size: 1.75rem; font-weight: 700; }
+    .stat-card .stat-icon { font-size: 1.6rem; color: var(--accent); opacity: .85; }
 </style>
 
+<!-- Stats -->
+<div class="row g-3 mb-4">
+    <div class="col-6 col-xl-3">
+        <div class="card stat-card h-100" style="--accent: var(--bs-info)">
+            <div class="card-body d-flex justify-content-between align-items-start">
+                <div>
+                    <div class="text-secondary small">Users</div>
+                    <div class="stat-value">{{ users|length }}</div>
+                    <div class="text-secondary small">{{ sellers|length }} can sell</div>
+                </div>
+                <i class="fas fa-users stat-icon"></i>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-xl-3">
+        <a href="{{ url_for('manage_items', status='Hidden') }}" class="text-decoration-none text-reset">
+            <div class="card stat-card h-100" style="--accent: var(--bs-warning)">
+                <div class="card-body d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="text-secondary small">Items listed</div>
+                        <div class="stat-value">{{ items|length }}</div>
+                        <div class="text-secondary small">{{ hidden_items }} hidden by admin</div>
+                    </div>
+                    <i class="fas fa-box stat-icon"></i>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-6 col-xl-3">
+        <div class="card stat-card h-100" style="--accent: var(--bs-primary)">
+            <div class="card-body d-flex justify-content-between align-items-start">
+                <div>
+                    <div class="text-secondary small">Orders in progress</div>
+                    <div class="stat-value">{{ order_stats.in_progress }}</div>
+                    <div class="text-secondary small">{{ order_stats.total }} orders in total</div>
+                </div>
+                <i class="fas fa-truck stat-icon"></i>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-xl-3">
+        <div class="card stat-card h-100" style="--accent: var(--bs-success)">
+            <div class="card-body d-flex justify-content-between align-items-start">
+                <div>
+                    <div class="text-secondary small">Delivered &amp; paid</div>
+                    <div class="stat-value">Ksh {{ '{:,.0f}'.format(order_stats.delivered_value) }}</div>
+                    <div class="text-secondary small">{{ order_stats.delivered }} orders</div>
+                </div>
+                <i class="fas fa-coins stat-icon"></i>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Newest listings: items go live instantly, so the admin can hide anything inappropriate -->
+<div class="card mb-4" id="latest-items">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span class="fw-semibold"><i class="fas fa-bolt"></i> Newest listings</span>
+        <a href="{{ url_for('manage_items') }}" class="small">All items →</a>
+    </div>
+    {% if latest_items %}
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th></th>
+                    <th>Item</th>
+                    <th>Seller</th>
+                    <th>Category</th>
+                    <th>Price</th>
+                    <th>Status</th>
+                    <th class="text-end">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in latest_items %}
+                <tr>
+                    <td style="width: 64px;">
+                        {% if item.image %}
+                        <img src="{{ url_for('static', filename='uploads/' + item.image) }}" alt="{{ item.name }}"
+                             style="width: 48px; height: 48px; object-fit: cover; border-radius: 6px;">
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div class="fw-semibold">{{ item.name }}</div>
+                        <div class="text-secondary small text-truncate" style="max-width: 280px;" title="{{ item.description }}">{{ item.description }}</div>
+                    </td>
+                    <td>{{ item.seller.username }}</td>
+                    <td>{{ item.category }}</td>
+                    <td class="text-nowrap">Ksh {{ '{:,.0f}'.format(item.price) }}</td>
+                    <td>
+                        {% if item.verified %}<span class="badge bg-success">Live</span>
+                        {% else %}<span class="badge bg-warning text-dark">Hidden</span>{% endif %}
+                    </td>
+                    <td class="text-end">
+                        {% if item.verified %}
+                        <form action="{{ url_for('unverify_item', item_id=item.id) }}" method="POST" class="d-inline"
+                              onsubmit="return confirm('Hide this item from the market? The seller will be notified.');">
+                            <button type="submit" class="btn btn-outline-warning btn-sm"><i class="fas fa-eye-slash"></i> Hide</button>
+                        </form>
+                        {% else %}
+                        <form action="{{ url_for('verify_item', item_id=item.id) }}" method="POST" class="d-inline">
+                            <button type="submit" class="btn btn-success btn-sm"><i class="fas fa-eye"></i> Show</button>
+                        </form>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="card-body text-secondary">No items listed yet.</div>
+    {% endif %}
+</div>
+
+<!-- Recent orders: buyers pay on delivery, so orders are the record of what was bought -->
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span class="fw-semibold"><i class="fas fa-truck"></i> Recent orders</span>
+        <a href="{{ url_for('manage_orders') }}" class="small">All orders →</a>
+    </div>
+    {% if recent_orders %}
+    {% set orders = recent_orders %}
+    {% include 'includes/admin_orders_table.html' %}
+    {% else %}
+    <div class="card-body text-secondary">No orders yet.</div>
+    {% endif %}
+</div>
+
+<div class="row g-3 mb-4">
+    <!-- Download data -->
+    <div class="col-lg-4">
+        <div class="card h-100">
+            <div class="card-header fw-semibold"><i class="fas fa-download me-1"></i> Download data</div>
+            <div class="card-body">
+                <p class="text-secondary small">CSV files open in Excel or Google Sheets.</p>
+                <div class="d-grid gap-2">
+                    <a href="{{ url_for('admin_export', dataset='orders') }}" class="btn btn-outline-success text-start"><i class="fas fa-file-csv fa-fw me-1"></i> Orders <span class="float-end small text-secondary">{{ order_stats.total }}</span></a>
+                    <a href="{{ url_for('admin_export', dataset='items') }}" class="btn btn-outline-success text-start"><i class="fas fa-file-csv fa-fw me-1"></i> Items <span class="float-end small text-secondary">{{ items|length }}</span></a>
+                    <a href="{{ url_for('admin_export', dataset='users') }}" class="btn btn-outline-success text-start"><i class="fas fa-file-csv fa-fw me-1"></i> Users <span class="float-end small text-secondary">{{ users|length }}</span></a>
+                    <a href="{{ url_for('generate_report') }}" class="btn btn-outline-danger text-start"><i class="fas fa-file-pdf fa-fw me-1"></i> Full report (PDF)</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Top sellers -->
+    <div class="col-lg-4">
+        <div class="card h-100">
+            <div class="card-header fw-semibold"><i class="fas fa-trophy me-1 text-warning"></i> Top sellers</div>
+            {% if top_sellers %}
+            <ul class="list-group list-group-flush">
+                {% for name, count, total in top_sellers %}
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <span><span class="text-secondary me-2">{{ loop.index }}.</span>{{ name }}</span>
+                    <span class="text-end"><strong>Ksh {{ '{:,.0f}'.format(total) }}</strong><br><span class="small text-secondary">{{ count }} delivered</span></span>
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <div class="card-body text-secondary">No delivered orders yet.</div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- New users -->
+    <div class="col-lg-4">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span class="fw-semibold"><i class="fas fa-user-plus me-1"></i> Newest members</span>
+                <a href="{{ url_for('manage_users') }}" class="small">All users →</a>
+            </div>
+            <ul class="list-group list-group-flush">
+                {% for u in new_users %}
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <span>{{ u.username }}<br><span class="small text-secondary">{{ u.email }}</span></span>
+                    <span class="small text-secondary">{{ u.created_at.strftime('%d %b') if u.created_at else '' }}</span>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+</div>
 {% endblock %}

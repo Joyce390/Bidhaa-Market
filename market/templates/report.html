@@ -12,6 +12,26 @@
 </head>
 <body>
     <h2>Bidhaa Market Report</h2>
+    {% if start_date and end_date %}<p style="text-align:center;">{{ start_date }} to {{ end_date }}</p>{% endif %}
+
+    <h3>Summary</h3>
+    <table>
+        <tr><th>Orders</th><th>Delivered &amp; paid (KES)</th><th>Users</th><th>Items listed</th></tr>
+        <tr><td>{{ num_orders }}</td><td>{{ '{:,.0f}'.format(total_sales) }}</td><td>{{ users|length }}</td><td>{{ items|length }}</td></tr>
+    </table>
+
+    <h3>Top Items &amp; Buyers</h3>
+    <table>
+        <tr><th>Item</th><th>Orders</th><th>Buyer</th><th>Orders</th></tr>
+        {% for i in range([top_items|length, top_buyers|length]|max) %}
+        <tr>
+            <td>{{ top_items[i][0] if i < top_items|length else '' }}</td>
+            <td>{{ top_items[i][1] if i < top_items|length else '' }}</td>
+            <td>{{ top_buyers[i][0] if i < top_buyers|length else '' }}</td>
+            <td>{{ top_buyers[i][1] if i < top_buyers|length else '' }}</td>
+        </tr>
+        {% endfor %}
+    </table>
 
     <h3>User Summary</h3>
     <table>
@@ -39,7 +59,7 @@
     <h3>Item Summary</h3>
     <table>
         <thead>
-            <tr><th>ID</th><th>Name</th><th>Seller</th><th>Price</th><th>Stock</th></tr>
+            <tr><th>ID</th><th>Name</th><th>Seller</th><th>Price</th><th>Status</th></tr>
         </thead>
         <tbody>
             {% for item in items %}
@@ -48,25 +68,28 @@
                 <td>{{ item.name }}</td>
                 <td>{{ item.seller.username }}</td>
                 <td>KES {{ item.price }}</td>
-                <td>{{ item.stock }}</td>
+                <td>{% if item.sold %}Sold{% elif item.verified %}Live{% else %}Hidden{% endif %}</td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
 
-    <h3>Transaction Summary</h3>
+    <h3>Orders (paid on delivery)</h3>
     <table>
         <thead>
-            <tr><th>ID</th><th>Buyer</th><th>Seller</th><th>Amount</th><th>Date</th></tr>
+            <tr><th>ID</th><th>Date</th><th>Item</th><th>Buyer</th><th>Seller</th><th>Amount</th><th>Deliver to</th><th>Status</th></tr>
         </thead>
         <tbody>
-            {% for transaction in transactions %}
+            {% for order in orders %}
             <tr>
-                <td>{{ transaction.id }}</td>
-                <td>{{ transaction.buyer.username }}</td>
-                <td>{{ transaction.seller.username }}</td>
-                <td>KES {{ transaction.amount }}</td>
-                <td>{{ transaction.date.strftime('%Y-%m-%d') }}</td>
+                <td>{{ order.id }}</td>
+                <td>{{ order.order_date.strftime('%Y-%m-%d') }}</td>
+                <td>{{ order.item.name }}</td>
+                <td>{{ order.user.username }}</td>
+                <td>{{ order.seller.username }}</td>
+                <td>KES {{ '{:,.0f}'.format(order.total_price) }}</td>
+                <td>{{ order.shipping_town or '-' }}</td>
+                <td>{{ 'Delivered & paid' if order.shipping_status == 'Delivered' else order.shipping_status }}</td>
             </tr>
             {% endfor %}
         </tbody>

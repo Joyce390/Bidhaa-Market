@@ -5,12 +5,81 @@
 {% endblock %}
 
 {% block content %}
+<style>
+    /* The background photo itself is set in base.html and left unchanged */
+    /* Panel sits over the dark right half of the photo so the family on the left stays visible */
+    .hero { min-height: calc(100vh - 200px); display: flex; align-items: center; justify-content: center; }
+    @media (min-width: 992px) { .hero { justify-content: flex-end; padding-right: 2%; } }
+    .hero-panel {
+        color: #fff;
+        max-width: 600px;
+        background: rgba(15, 16, 16, 0.72);
+        backdrop-filter: blur(6px);
+        -webkit-backdrop-filter: blur(6px);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 18px;
+        padding: 2.5rem 2rem;
+        box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.45);
+    }
+    .hero-eyebrow {
+        display: inline-block;
+        font-size: .8rem;
+        letter-spacing: .04em;
+        padding: .35rem .8rem;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.08);
+        color: #d7d7d7;
+    }
+    .hero-title { font-size: clamp(2.4rem, 6vw, 3.6rem); font-weight: 800; letter-spacing: -.02em; line-height: 1.05; }
+    .hero-title span {
+        background: linear-gradient(90deg, #ff5a4e, #ffd24a, #3ecf6e, #3b8cff);
+        -webkit-background-clip: text; background-clip: text; color: transparent;
+    }
+    .hero-lead { color: #cfcfcf; font-size: 1.1rem; }
+    .hero .btn-lg { padding: .75rem 1.6rem; border-radius: 999px; font-weight: 600; }
+    .hero-features { border-top: 1px solid rgba(255, 255, 255, 0.1); }
+    .hero-feature { font-size: .85rem; color: #cfcfcf; }
+    .hero-feature i, .hero-feature svg { color: #ffd24a; display: block; margin: 0 auto .35rem; }
+    .hero-chip {
+        display: inline-block; padding: .3rem .85rem; margin: .2rem; border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.2); color: #eaeaea; font-size: .85rem; text-decoration: none;
+    }
+    .hero-chip:hover { background: rgba(255, 255, 255, 0.12); color: #fff; text-decoration: none; }
+</style>
 
-        <div class="col-md-9 text-center">
-            <div class="p-lg-5 mx-auto my-5">
-                <h1 class="display-4 font-weight-normal">Bidhaa Market</h1>
-                <p class="lead font-weight-normal">Start Shopping by clicking the link below</p>
-                <a class="btn btn-primary" href="#">Get Started</a>
-            </div>
+<div class="hero">
+    <div class="hero-panel text-center">
+        <span class="hero-eyebrow">🛍️ Buy &amp; sell locally · Pay on delivery</span>
+
+        <h1 class="hero-title mt-3 mb-3">Welcome to <span>Bidhaa&nbsp;Market</span></h1>
+
+        <p class="hero-lead mb-4">
+            Shop fashion, electronics and sports gear from sellers near you.
+            Order today and pay only when it arrives at your door.
+        </p>
+
+        <div class="d-flex flex-wrap justify-content-center gap-2 mb-4">
+            {% if current_user.is_authenticated %}
+                <a class="btn btn-primary btn-lg" href="{{ url_for('market_page') }}"><i class="fas fa-shopping-bag"></i> Shop the Market</a>
+                <a class="btn btn-outline-light btn-lg" href="{{ url_for('add_item') }}"><i class="fas fa-tag"></i> Sell an Item</a>
+            {% else %}
+                <a class="btn btn-primary btn-lg" href="{{ url_for('register') }}">Get Started <i class="fas fa-arrow-right"></i></a>
+                <a class="btn btn-outline-light btn-lg" href="{{ url_for('login') }}">I have an account</a>
+            {% endif %}
         </div>
+
+        <div class="mb-4">
+            <a class="hero-chip" href="{{ url_for('market_page', category='Fashion') }}">👕 Fashion</a>
+            <a class="hero-chip" href="{{ url_for('market_page', category='Electronics') }}">📱 Electronics</a>
+            <a class="hero-chip" href="{{ url_for('market_page', category='Sports') }}">⚽ Sports</a>
+            <a class="hero-chip" href="{{ url_for('market_page', category='Tools') }}">🔧 Tools</a>
+        </div>
+
+        <div class="row hero-features pt-3 g-2">
+            <div class="col-4 hero-feature"><i class="fas fa-hand-holding-usd d-block mb-1 fs-5"></i>Pay on delivery</div>
+            <div class="col-4 hero-feature"><i class="fas fa-shield-alt d-block mb-1 fs-5"></i>Moderated listings</div>
+            <div class="col-4 hero-feature"><i class="fas fa-user-check d-block mb-1 fs-5"></i>One account to buy &amp; sell</div>
+        </div>
+    </div>
+</div>
 {% endblock %}

@@ -1,60 +1,63 @@
 {% extends 'base.html' %}
-{% block title %}
-Register Page
-{% endblock %}
+
+{% block title %}Sign up · Bidhaa Market{% endblock %}
+
+{% macro field(f, icon, placeholder, autocomplete, extra_id=None, toggle=False) %}
+    <div class="mb-3">
+        {{ f.label(class="form-label", text=f.label.text.rstrip(': ')) }}
+        <div class="input-group">
+            <span class="input-group-text"><i class="fas {{ icon }}"></i></span>
+            {% if extra_id %}
+            {{ f(class="form-control" + (" is-invalid" if f.errors else ""), placeholder=placeholder, autocomplete=autocomplete, id=extra_id) }}
+            {% else %}
+            {{ f(class="form-control" + (" is-invalid" if f.errors else ""), placeholder=placeholder, autocomplete=autocomplete) }}
+            {% endif %}
+            {% if toggle %}
+            <button type="button" class="btn toggle-pw" data-target="{{ extra_id }}" aria-label="Show password"><span class="label">Show</span></button>
+            {% endif %}
+        </div>
+        {% for error in f.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+    </div>
+{% endmacro %}
 
 {% block content %}
-<body class="text-center">
-    <div class="container">
-        <form method="POST" class="form-register" style="color: aliceblue;   ">
-            {{ form.hidden_tag() }}
-            <img class="mb-4" src="{{ url_for('static', filename='images/logo.jpg') }}" alt="Logo" style="width: 150px; height: auto;">
+{% include 'includes/auth_styles.html' %}
 
-            <h1  class="h3 mb-3 font-weight-normal">
-                Please Create your Account
-            </h1>
-            <br>
-            {{ form.username.label() }}
-            {{ form.username(class="form-control", placeholder="User Name") }}
-            {% for error in form.username.errors %}
-                <small class="text-danger">{{ error }}</small>
-            {% endfor %}
-            
-            {{ form.email.label() }}
-            {{ form.email(class="form-control", placeholder="Email Address") }}
-            {% for error in form.email.errors %}
-                <small class="text-danger">{{ error }}</small>
-            {% endfor %}
+<div class="auth-wrap">
+    <div class="auth-card row g-0">
+        <!-- Brand side -->
+        <div class="col-md-5 auth-side d-none d-md-block">
+            <img class="logo mb-4" src="{{ url_for('static', filename='images/Logo.jpg') }}" alt="Bidhaa Market logo">
+            <h2 class="mb-2">Join Bidhaa Market</h2>
+            <p class="mb-4" style="color:#c9d5ef;">Create one free account to buy what you need and sell what you don't.</p>
+            <div class="perk"><i class="fas fa-shopping-bag"></i><span>Shop fashion, electronics, sports gear and tools</span></div>
+            <div class="perk"><i class="fas fa-hand-holding-usd"></i><span>No online payment: pay on delivery</span></div>
+            <div class="perk"><i class="fas fa-tags"></i><span>List your own items for sale in minutes</span></div>
+        </div>
 
-            {{ form.phone.label() }}
-            {{ form.phone(class="form-control", placeholder="Phone") }}
-            {% for error in form.phone.errors %}
-                <small class="text-danger">{{ error }}</small>
-            {% endfor %}
-            
-            {{ form.password1.label() }}
-            {{ form.password1(class="form-control", placeholder="Password") }}
-            {% for error in form.password1.errors %}
-                <small class="text-danger">{{ error }}</small>
-            {% endfor %}
-            
-            {{ form.password2.label() }}
-            {{ form.password2(class="form-control", placeholder="Confirm Password") }}
-            {% for error in form.password2.errors %}
-                <small class="text-danger">{{ error }}</small>
-            {% endfor %}
-            
+        <!-- Form side -->
+        <div class="col-md-7 auth-form">
+            <h1 class="mb-1">Create your account</h1>
+            <p class="text-secondary mb-4">It only takes a minute.</p>
 
-            <br>
+            <form method="POST" novalidate>
+                {{ form.hidden_tag() }}
 
-            <div class="checkbox mb-3">
-                <h6>Already have an account?</h6>
-                <a class="btn btn-sm btn-secondary" href="{{ url_for('login') }}">Login</a>
-            </div>
+                <div class="row">
+                    <div class="col-sm-6">{{ field(form.username, 'fa-user', 'e.g. jane_w', 'username') }}</div>
+                    <div class="col-sm-6">{{ field(form.phone, 'fa-phone', '07XX XXX XXX', 'tel') }}</div>
+                </div>
+                {{ field(form.email, 'fa-envelope', 'you@example.com', 'email') }}
+                {{ field(form.password1, 'fa-lock', 'At least 6 characters', 'new-password', 'reg-password1', True) }}
+                {{ field(form.password2, 'fa-lock', 'Type the password again', 'new-password', 'reg-password2', True) }}
 
-            {{ form.submit(class="btn btn-lg btn-block btn-primary") }}
+                {{ form.submit(class="btn btn-brand w-100 btn-submit mt-2") }}
+            </form>
 
-        </form>
+            <p class="text-center text-secondary mt-4 mb-0">
+                Already have an account? <a href="{{ url_for('login') }}" class="fw-semibold text-decoration-none">Log in</a>
+            </p>
+        </div>
     </div>
-</body>
+</div>
 {% endblock %}

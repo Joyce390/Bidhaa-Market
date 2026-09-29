@@ -1,46 +1,60 @@
 {% extends "base.html" %}
 
-{% block title %}
-    Login Page
-{% endblock %}
+{% block title %}Log in · Bidhaa Market{% endblock %}
 
 {% block content %}
-<body class="text-center">
-    <div class="container">
-        <form method="POST" class="form-register" style="color: aliceblue;">
-            {{ form.hidden_tag() }}
+{% include 'includes/auth_styles.html' %}
 
-            <img class="mb-4" src="{{ url_for('static', filename='images/logo.jpg') }}" alt="Logo" style="width: 150px; height: auto;">
+<div class="auth-wrap">
+    <div class="auth-card row g-0">
+        <!-- Brand side -->
+        <div class="col-md-5 auth-side d-none d-md-block">
+            <img class="logo mb-4" src="{{ url_for('static', filename='images/Logo.jpg') }}" alt="Bidhaa Market logo">
+            <h2 class="mb-2">Welcome back!</h2>
+            <p class="mb-4" style="color:#c9d5ef;">Log in to shop the market, track your orders and manage the items you sell.</p>
+            <div class="perk"><i class="fas fa-hand-holding-usd"></i><span>Pay only when your order is delivered</span></div>
+            <div class="perk"><i class="fas fa-shield-alt"></i><span>Our team removes suspicious listings</span></div>
+            <div class="perk"><i class="fas fa-user-check"></i><span>One account to buy and sell</span></div>
+        </div>
 
-            <h1 class="h3 mb-3 font-weight-normal">Please Login</h1>
-            <br>
+        <!-- Form side -->
+        <div class="col-md-7 auth-form">
+            <h1 class="mb-1">Log in</h1>
+            <p class="text-secondary mb-4">Enter your details to continue.</p>
 
-            {# Username Field #}
-            <div class="form-group">
-                {{ form.username.label(class="form-label") }}
-                {{ form.username(class="form-control", placeholder="User Name") }}
-            </div>
+            <form method="POST" novalidate>
+                {{ form.hidden_tag() }}
 
-            {# Password Field #}
-            <div class="form-group">
-                {{ form.password.label(class="form-label") }}
-                {{ form.password(class="form-control", placeholder="Password") }}
-            </div>
-            <br>
+                <div class="mb-3">
+                    {{ form.username.label(class="form-label", text="Username") }}
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="fas fa-user"></i></span>
+                        {{ form.username(class="form-control" + (" is-invalid" if form.username.errors else ""), placeholder="Your username", autocomplete="username", autofocus=true) }}
+                    </div>
+                    {% for error in form.username.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                </div>
 
-            <a class="btn btn-sm btn-secondary" href="{{ url_for('forgot_password') }}">Forgot password</a>
+                <div class="mb-2">
+                    {{ form.password.label(class="form-label", text="Password") }}
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="fas fa-lock"></i></span>
+                        {{ form.password(class="form-control" + (" is-invalid" if form.password.errors else ""), placeholder="Your password", autocomplete="current-password", id="login-password") }}
+                        <button type="button" class="btn toggle-pw" data-target="login-password" aria-label="Show password"><span class="label">Show</span></button>
+                    </div>
+                    {% for error in form.password.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                </div>
 
+                <div class="text-end mb-4">
+                    <a href="{{ url_for('forgot_password') }}" class="small text-decoration-none">Forgot password?</a>
+                </div>
 
-            <br>
+                {{ form.submit(class="btn btn-primary w-100 btn-submit", value="Log in") }}
+            </form>
 
-            <div class="checkbox mb-3">
-                <h6>Do not have an account?</h6>
-                <a class="btn btn-sm btn-secondary" href="{{ url_for('register') }}">Register</a>
-            </div>
-
-            {# Submit Button #}
-            {{ form.submit(class="btn btn-lg btn-block btn-primary") }}
-        </form>
+            <p class="text-center text-secondary mt-4 mb-0">
+                New to Bidhaa Market? <a href="{{ url_for('register') }}" class="fw-semibold text-decoration-none">Create an account</a>
+            </p>
+        </div>
     </div>
-</body>
+</div>
 {% endblock %}

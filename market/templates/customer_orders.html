@@ -4,58 +4,53 @@
 
 {% block content %}
 <div class="container mt-5">
-    <h2 class="text-light text-center">Your Orders</h2>
+    <h2 class="fw-bold">My Orders</h2>
 
     {% if orders %}
-    <form action="{{ url_for('submit_shipping_all') }}" method="POST">
-       
-        <div class="card mb-4 p-3">
-            <h4 class="text-dark">Shipping Details</h4>
-
-            <div class="form-group mb-2">
-                <label for="global_town" class="text-dark">Town</label>
-                <input type="text" name="global_town" class="form-control" 
-                    value="{{ orders[0].shipping_town or '' }}" required>
-            </div>
-
-            <div class="form-group mb-2">
-                <label for="global_apartment" class="text-dark">Apartment Name</label>
-                <input type="text" name="global_apartment" class="form-control" 
-                    value="{{ orders[0].shipping_apartment or '' }}" required>
-            </div>
-
-            <div class="form-group mb-2">
-                <label for="global_phone" class="text-dark">Phone Number</label>
-                <input type="text" name="global_phone" class="form-control" 
-                    value="{{ orders[0].shipping_phone or '' }}" required>
-            </div>
-        </div>
-
-        <div class="row">
+        <div class="row mt-4">
             {% for order in orders %}
                 <div class="col-md-6">
                     <div class="card order-card mb-4">
                         <div class="card-body">
                             <h5 class="card-title text-dark">{{ order.item.name }}</h5>
                             <p class="text-secondary">Price: <strong class="text-success">Ksh {{ order.total_price }}</strong></p>
-                            <p class="text-secondary">Purchase Date: {{ order.order_date.strftime('%Y-%m-%d') }}</p>
-                            
-                            <p class="text-info">Shipping Status: 
-                                <strong class="{% if order.shipping_status == 'Processing' %} text-warning 
-                                              {% elif order.shipping_status == 'Shipping in Process' %} text-primary 
-                                              {% elif order.shipping_status == 'Shipped' %} text-success 
+                            <p class="text-secondary">Order Date: {{ order.order_date.strftime('%Y-%m-%d') }}</p>
+                            <p class="text-secondary mb-1">Deliver to:
+                                <strong class="text-dark">{{ order.shipping_apartment or '-' }}, {{ order.shipping_town or '-' }}</strong>
+                                {% if order.delivery_lat is not none and order.delivery_lng is not none %}
+                                <a href="https://www.google.com/maps?q={{ order.delivery_lat }},{{ order.delivery_lng }}" target="_blank" rel="noopener">📍 View pin</a>
+                                {% endif %}
+                            </p>
+                            {% if order.delivery_notes %}
+                            <p class="text-secondary small mb-1">Directions: {{ order.delivery_notes }}</p>
+                            {% endif %}
+                            <p class="text-secondary">Payment:
+                                {% if order.shipping_status == 'Delivered' %}
+                                    <strong class="text-success">Paid on delivery</strong>
+                                {% else %}
+                                    <strong class="text-warning">Pay Ksh {{ order.total_price }} on delivery</strong>
+                                {% endif %}
+                            </p>
+
+                            <p class="text-info">Shipping Status:
+                                <strong class="{% if order.shipping_status == 'Processing' %} text-warning
+                                              {% elif order.shipping_status == 'Shipping in Process' %} text-primary
+                                              {% elif order.shipping_status in ['Shipped', 'Delivered'] %} text-success
                                               {% else %} text-muted {% endif %}">
                                     {{ order.shipping_status }}
                                 </strong>
                             </p>
 
-                            {% if order.shipping_status == 'Shipped' %}
-                           
-                            <form action="{{ url_for('delete_order', order_id=order.id) }}" method="POST">
-                                <button type="submit" class="btn btn-danger btn-sm mt-2">
-                                    Delete Order
-                                </button>
-                            </form>
+                            {# These buttons submit forms defined below, since forms can't be nested #}
+                            {% if order.shipping_status == 'Delivered' %}
+                            <button type="submit" form="delete-order-{{ order.id }}" class="btn btn-danger btn-sm mt-2">
+                                Delete Order
+                            </button>
+                            {% elif order.shipping_status in ['Pending', 'Processing'] %}
+                            <button type="submit" form="cancel-order-{{ order.id }}" class="btn btn-outline-danger btn-sm mt-2"
+                                    onclick="return confirm('Cancel this order?');">
+                                Cancel Order
+                            </button>
                             {% endif %}
                         </div>
                     </div>
@@ -63,20 +58,15 @@
             {% endfor %}
         </div>
 
-       
-        <div class="form-check mt-2 mb-3">
-            <input type="checkbox" class="form-check-input" id="confirmDeliveryAll" name="confirmDeliveryAll" required>
-            <label class="form-check-label text-light" for="confirmDeliveryAll">
-                I agree to pay for delivery upon order arrival depending on your delivery location.
-            </label>
-        </div>
+        <p class="text-secondary text-center mb-5">💵 You pay for each item when it is delivered to you.</p>
 
-      
-        <button type="submit" class="btn btn-primary mb-5">Submit Shipping for All Orders</button>
-    </form>
+    {% for order in orders %}
+    <form id="delete-order-{{ order.id }}" action="{{ url_for('delete_order', order_id=order.id) }}" method="POST"></form>
+    <form id="cancel-order-{{ order.id }}" action="{{ url_for('cancel_order', order_id=order.id) }}" method="POST"></form>
+    {% endfor %}
 
     {% else %}
-        <p class="text-light text-center mt-4">You have no orders at the moment.</p>
+        <p class="text-secondary text-center mt-4">You have no orders at the moment.</p>
     {% endif %}
 </div>
 {% endblock %}
